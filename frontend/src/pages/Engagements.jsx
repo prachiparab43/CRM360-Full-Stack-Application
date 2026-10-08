@@ -41,7 +41,7 @@ export default function Engagements() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Tasks & Meetings</h1>
       
       <div className="flex gap-4 border-b border-gray-200 mb-6">
@@ -86,7 +86,7 @@ export default function Engagements() {
       )}
 
       {taskModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-2xl">
             <h2 className="text-xl font-bold mb-4">Add Task</h2>
             <form onSubmit={handleTaskSubmit} className="space-y-4">
@@ -114,3 +114,5 @@ export default function Engagements() {
     </div>
   );
 }
+
+

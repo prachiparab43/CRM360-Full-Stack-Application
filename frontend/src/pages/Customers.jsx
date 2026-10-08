@@ -46,7 +46,7 @@ export default function Customers() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Customers (Accounts)</h1>
         <button onClick={() => { setEditingId(null); setFormData({name: '', company_details: '', industry: '', address: '', phone: '', email: '', assigned_employee_id: '', status: 'Active'}); setShowModal(true); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700">
@@ -61,8 +61,7 @@ export default function Customers() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <table className="w-full text-left border-collapse">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto overflow-y-hidden"><table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-600 uppercase">
               <th className="px-6 py-4">Account Name</th>
@@ -89,7 +88,7 @@ export default function Customers() {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">{editingId ? 'Edit' : 'Add'} Customer</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -119,3 +118,5 @@ export default function Customers() {
     </div>
   );
 }
+
+

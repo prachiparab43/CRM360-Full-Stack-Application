@@ -34,7 +34,7 @@ export default function Dashboard() {
     </div>
   );
 
-  if (error) return <div className="p-8 text-red-500 font-medium">{error}</div>;
+  if (error) return <div className="p-4 md:p-8 text-red-500 font-medium">{error}</div>;
 
   const StatCard = ({ title, value, icon: Icon, colorClass }) => (
     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-5 transition-transform hover:-translate-y-1">
@@ -52,7 +52,7 @@ export default function Dashboard() {
   const openOpps = summary.total_opportunities - summary.won_opportunities - summary.lost_opportunities;
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 pb-12">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 pb-12">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Dashboard Overview</h1>
         <p className="text-gray-500 mt-1">Welcome back. Here's what's happening with your CRM today.</p>
@@ -122,3 +122,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
+
