@@ -1,0 +1,29 @@
+# General
+.DS_Store
+.vscode/
+.idea/
+
+# Python / Backend
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+**/venv/
+**/env/
+**/.env
+**/.pytest_cache/
+alembic.ini.backup
+
+# Node / Frontend
+**/node_modules/
+**/dist/
+**/build/
+**/.env.local
+**/.env.development
+**/.env.production
+**/.vite/
+
+# Database
+*.mdf
+*.ldf
+*.sqlite
+*.db
