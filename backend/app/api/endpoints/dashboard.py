@@ -9,11 +9,39 @@ from app.schemas.dashboard import DashboardSummary, DashboardCharts, ChartDataPo
 
 router = APIRouter()
 
+from fastapi import HTTPException
+from app.models.domain import Contact
+
 def apply_scope(query, model, auth_info):
     scope = auth_info["scope"]
     curr_user = auth_info["user"]
     if scope == "All":
         return query
+        
+    emp_col = None
+    if model == Contact:
+        # Avoid duplicate join if Customer already joined
+        if 'Customer' not in str(query):
+            query = query.join(Customer, Contact.customer_id == Customer.id)
+        emp_col = Customer.assigned_employee_id
+    elif hasattr(model, 'assigned_employee_id'): 
+        emp_col = model.assigned_employee_id
+    elif hasattr(model, 'employee_id'): 
+        emp_col = model.employee_id
+    elif model == Employee: 
+        emp_col = model.id
+        
+    if emp_col is None:
+        raise HTTPException(status_code=403, detail=f"Cannot apply RBAC scope to model {model.__name__}")
+
+    if scope == "Own":
+        return query.filter(emp_col == curr_user.id)
+    elif scope in ["Team", "Company"]:
+        if model != Employee and 'Employee' not in str(query):
+            query = query.join(Employee, emp_col == Employee.id)
+        return query.filter(Employee.company_id == curr_user.company_id)
+    
+    raise HTTPException(status_code=403, detail="Invalid scope type")
         
     # Find employee column mapping
     emp_col = None
@@ -71,14 +99,35 @@ def get_dashboard_charts(
 ):
     leads_q = apply_scope(db.query(Lead.status, func.count(Lead.id)), Lead, auth_info).group_by(Lead.status).all()
     opp_q = apply_scope(db.query(Opportunity.stage, func.count(Opportunity.id)), Opportunity, auth_info).group_by(Opportunity.stage).all()
-    emp_perf = apply_scope(db.query(Employee.name, func.sum(Opportunity.expected_value)), Opportunity, auth_info)\
-                .join(Employee, Opportunity.assigned_employee_id == Employee.id)\
-                .filter(Opportunity.stage == "Won")\
-                .group_by(Employee.name).all()
+    
+    perf_query = apply_scope(db.query(Employee.name, func.sum(Opportunity.expected_value)), Opportunity, auth_info).filter(Opportunity.stage == "Won")
+    if 'Employee' not in str(perf_query):
+        perf_query = perf_query.join(Employee, Opportunity.assigned_employee_id == Employee.id)
+    emp_perf = perf_query.group_by(Employee.name).all()
+
+    # Calculate monthly sales for the current year
+    current_year = datetime.now().year
+    sales_query = apply_scope(
+        db.query(
+            func.month(Opportunity.expected_close_date).label('month'),
+            func.sum(Opportunity.expected_value).label('total')
+        ), Opportunity, auth_info
+    ).filter(
+        Opportunity.stage == "Won",
+        func.year(Opportunity.expected_close_date) == current_year
+    ).group_by(func.month(Opportunity.expected_close_date)).all()
+    
+    # Map months to strings
+    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    monthly_sales_data = []
+    sales_dict = {row.month: row.total for row in sales_query if row.month}
+    for i in range(1, 13):
+        monthly_sales_data.append(ChartDataPoint(label=months[i-1], value=sales_dict.get(i, 0)))
 
     return DashboardCharts(
-        lead_distribution=[ChartDataPoint(label=k, value=v) for k, v in leads_q],
+        lead_distribution=[ChartDataPoint(label=k, value=v
+) for k, v in leads_q],
         opportunity_distribution=[ChartDataPoint(label=k, value=v) for k, v in opp_q],
-        monthly_sales=[], # Simplified for example
+        monthly_sales=monthly_sales_data,
         employee_performance=[ChartDataPoint(label=k, value=v or 0) for k, v in emp_perf]
     )

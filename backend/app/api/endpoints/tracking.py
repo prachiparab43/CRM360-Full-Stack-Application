@@ -102,9 +102,7 @@ def get_visits(
     db: Session = Depends(deps.get_db),
     auth_info: dict = Depends(deps.PermissionChecker("Visit", "View"))
 ):
-    query = db.query(CustomerVisit)
-    if auth_info["scope"] == "Own":
-        query = query.filter(CustomerVisit.employee_id == auth_info["user"].id)
+    query = apply_scope(db.query(CustomerVisit), CustomerVisit, auth_info)
     return query.order_by(CustomerVisit.id.desc()).all()
 
 @router_visits.post("/{visit_id}/check-in", response_model=CustomerVisitResponse)

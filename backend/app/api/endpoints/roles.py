@@ -75,3 +75,35 @@ def assign_role(
     
     log_action(db, auth_info["user"].id, "Assign Role", "Employee", employee.id, old_val=str(old_role), new_val=str(role.id))
     return {"message": "Role assigned successfully"}
+@router.put("/{role_id}", response_model=RoleResponse)
+def update_role(
+    *,
+    db: Session = Depends(deps.get_db),
+    role_id: int,
+    role_in: RoleUpdate,
+    auth_info: dict = Depends(deps.PermissionChecker("Role", "Edit")),
+):
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+        
+    update_data = role_in.model_dump(exclude_unset=True, exclude={"permissions"})
+    for field, value in update_data.items():
+        setattr(role, field, value)
+        
+    if role_in.permissions is not None:
+        db.query(RolePermission).filter(RolePermission.role_id == role.id).delete()
+        for perm in role_in.permissions:
+            db_perm = RolePermission(
+                role_id=role.id, 
+                module=perm.module, 
+                action=perm.action, 
+                data_scope=perm.data_scope
+            )
+            db.add(db_perm)
+            
+    db.commit()
+    db.refresh(role)
+    
+    log_action(db, auth_info["user"].id, "Edit", "Role", role.id)
+    return role

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.api import deps
+from app.api.endpoints.dashboard import apply_scope
 from app.models.domain import Contact, Customer, Employee
 from app.schemas.customer import ContactCreate, ContactUpdate, ContactResponse
 from app.core.audit import log_action
@@ -58,7 +59,7 @@ def update_contact(
     contact_in: ContactUpdate,
     auth_info: dict = Depends(deps.PermissionChecker("Contact", "Edit")),
 ):
-    contact = db.query(Contact).filter(Contact.id == contact_id).first()
+    contact = apply_scope(db.query(Contact).filter(Contact.id == contact_id), Contact, auth_info).first()
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
 

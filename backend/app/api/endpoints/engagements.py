@@ -29,7 +29,7 @@ def create_activity(activity_in: ActivityCreate, db: Session = Depends(deps.get_
 
 @router_activities.get("/", response_model=List[ActivityResponse])
 def get_activities(db: Session = Depends(deps.get_db), auth_info: dict = Depends(deps.PermissionChecker("Activity", "View"))):
-    return db.query(Activity).order_by(Activity.id.desc()).all()
+    return apply_scope(db.query(Activity), Activity, auth_info).order_by(Activity.id.desc()).all()
 
 # --- TASKS ---
 @router_tasks.post("/", response_model=TaskResponse)
@@ -47,9 +47,7 @@ def get_tasks(
     overdue: bool = False,
     auth_info: dict = Depends(deps.PermissionChecker("Task", "View"))
 ):
-    query = db.query(Task)
-    if auth_info["scope"] == "Own":
-        query = query.filter(Task.assigned_employee_id == auth_info["user"].id)
+    query = apply_scope(db.query(Task), Task, auth_info)
     if overdue:
         query = query.filter(Task.due_date < datetime.now().date(), Task.status.notin_(["Completed", "Cancelled"]))
     return query.order_by(Task.due_date).all()

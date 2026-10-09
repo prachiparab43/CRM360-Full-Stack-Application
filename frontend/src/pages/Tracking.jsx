@@ -24,12 +24,12 @@ export default function Tracking() {
   const [visits, setVisits] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeCheckin, setActiveCheckin] = useState(false);
-  const [mapCenter, setMapCenter] = useState([37.7749, -122.4194]);
+  const [mapCenter, setMapCenter] = useState(null);
 
   const fetchTracking = async () => {
     try {
       const [locRes, visRes] = await Promise.all([
-        api.get('/tracking/locations/latest'),
+        api.get('/tracking/latest'),
         api.get('/visits/')
       ]);
       setLocations(locRes.data);
@@ -88,6 +88,15 @@ export default function Tracking() {
     }
   };
 
+  const completeVisit = async (visitId) => {
+    try {
+        await api.post(`/visits/${visitId}/check-out`);
+        fetchTracking();
+    } catch (err) {
+        alert('Failed to complete visit. Ensure you checked in first or have permissions.');
+    }
+  };
+
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-center">
@@ -103,14 +112,22 @@ export default function Tracking() {
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden h-[400px]">
-        <MapContainer key={mapCenter.join(',')} center={mapCenter} zoom={13} scrollWheelZoom={false} className="h-full w-full">
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
-          {locations.map(loc => (
-            <Marker key={loc.id} position={[loc.latitude, loc.longitude]}>
-              <Popup>Employee ID: {loc.employee_id} <br/> Time: {loc.timestamp}</Popup>
-            </Marker>
-          ))}
-        </MapContainer>
+        {!mapCenter ? (
+            <div className="h-full w-full flex items-center justify-center text-gray-500 flex-col gap-2 bg-gray-50">
+                <MapPin size={48} className="text-gray-300" />
+                <p>No active GPS data available.</p>
+                <p className="text-sm">Check in to start tracking.</p>
+            </div>
+        ) : (
+            <MapContainer key={mapCenter.join(',')} center={mapCenter} zoom={13} scrollWheelZoom={false} className="h-full w-full">
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
+            {locations.map(loc => (
+                <Marker key={loc.id} position={[loc.latitude, loc.longitude]}>
+                <Popup>Employee ID: {loc.employee_id} <br/> Time: {loc.timestamp}</Popup>
+                </Marker>
+            ))}
+            </MapContainer>
+        )}
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -124,7 +141,7 @@ export default function Tracking() {
                   <div className="text-sm text-gray-500">Status: <span className="font-medium text-blue-600">{v.status}</span></div>
                 </div>
                 {v.status !== 'Completed' && (
-                  <button className="text-green-600 flex items-center gap-1 hover:bg-green-50 px-2 py-1 rounded text-sm"><CheckCircle size={16}/> Complete</button>
+                  <button onClick={() => completeVisit(v.id)} className="text-green-600 flex items-center gap-1 hover:bg-green-50 px-2 py-1 rounded text-sm cursor-pointer"><CheckCircle size={16}/> Complete</button>
                 )}
               </li>
             ))}

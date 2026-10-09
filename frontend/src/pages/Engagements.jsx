@@ -27,7 +27,7 @@ export default function Engagements() {
   useEffect(() => { fetchData(); }, []);
 
   const [taskModal, setTaskModal] = useState(false);
-  const [taskData, setTaskData] = useState({ subject: '', priority: 'Medium', status: 'Pending', assigned_employee_id: '', due_date: '' });
+  const [taskData, setTaskData] = useState({ title: '', priority: 'Medium', status: 'Pending', assigned_employee_id: '', due_date: '' });
 
   const handleTaskSubmit = async (e) => {
     e.preventDefault();
@@ -51,12 +51,12 @@ export default function Engagements() {
 
       {activeTab === 'Tasks' && (
         <div>
-          <button onClick={() => { setTaskData({subject:'', priority:'Medium', status:'Pending', assigned_employee_id:'', due_date:''}); setTaskModal(true); }} className="mb-4 bg-blue-600 text-white px-4 py-2 rounded flex gap-2"><Plus size={18} /> Add Task</button>
+          <button onClick={() => { setTaskData({title:'', priority:'Medium', status:'Pending', assigned_employee_id:'', due_date:''}); setTaskModal(true); }} className="mb-4 bg-blue-600 text-white px-4 py-2 rounded flex gap-2"><Plus size={18} /> Add Task</button>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {tasks.map(t => (
               <div key={t.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-bold text-gray-900">{t.subject}</h3>
+                  <h3 className="font-bold text-gray-900">{t.title}</h3>
                   <span className={`px-2 py-1 text-xs rounded ${t.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{t.status}</span>
                 </div>
                 <div className="text-sm text-gray-500 mb-2 flex items-center gap-1"><Clock size={14}/> Due: {t.due_date || 'N/A'}</div>
@@ -74,7 +74,7 @@ export default function Engagements() {
             <ul className="space-y-4">
               {meetings.map(m => (
                 <li key={m.id} className="border-b pb-4">
-                  <div className="font-semibold">{m.subject}</div>
+                  <div className="font-semibold">{m.title}</div>
                   <div className="text-sm text-gray-500">{m.date} | {m.start_time} - {m.end_time}</div>
                   <div className="text-sm text-gray-500">Location: {m.location}</div>
                   <div className="mt-1"><span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded">{m.status}</span></div>
@@ -90,7 +90,7 @@ export default function Engagements() {
           <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-2xl">
             <h2 className="text-xl font-bold mb-4">Add Task</h2>
             <form onSubmit={handleTaskSubmit} className="space-y-4">
-              <div><label className="block text-sm font-medium mb-1">Subject *</label><input required value={taskData.subject} onChange={e=>setTaskData({...taskData, subject: e.target.value})} className="w-full p-2 border rounded" /></div>
+              <div><label className="block text-sm font-medium mb-1">title *</label><input required value={taskData.title} onChange={e=>setTaskData({...taskData, title: e.target.value})} className="w-full p-2 border rounded" /></div>
               <div><label className="block text-sm font-medium mb-1">Due Date</label><input type="date" value={taskData.due_date} onChange={e=>setTaskData({...taskData, due_date: e.target.value})} className="w-full p-2 border rounded" /></div>
               <div><label className="block text-sm font-medium mb-1">Priority</label>
                 <select value={taskData.priority} onChange={e=>setTaskData({...taskData, priority: e.target.value})} className="w-full p-2 border rounded">

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api';
-import { Plus, Edit, Search } from 'lucide-react';
+import { Plus, Edit, Search, Trash2 } from 'lucide-react';
 
 export default function Contacts() {
   const [contacts, setContacts] = useState([]);
@@ -26,6 +26,17 @@ export default function Contacts() {
   };
 
   useEffect(() => { fetchData(); }, [search]);
+
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this contact?')) {
+      try {
+        await api.delete(`/contacts/${id}`);
+        fetchData();
+      } catch (err) {
+        alert(err.response?.data?.detail || 'Error deleting contact');
+      }
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();

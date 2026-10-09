@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.api import deps
 from app.core import security
 from app.models.domain import Employee
-from app.schemas.employee import Token, EmployeeResponse
+from app.schemas.employee import Token
 
 router = APIRouter()
 
@@ -26,7 +26,21 @@ def login_access_token(db: Session = Depends(deps.get_db), form_data: OAuth2Pass
         "token_type": "bearer",
     }
 
-@router.get("/me", response_model=EmployeeResponse)
+@router.get("/me")
 def read_users_me(current_user: Employee = Depends(deps.get_current_active_user)) -> Any:
     """Get current user."""
-    return current_user
+    perms = []
+    if current_user.role:
+        if current_user.role.name == "System Administrator":
+            perms.append({"module": "Admin", "action": "All"})
+        for p in current_user.role.permissions:
+            perms.append({"module": p.module, "action": p.action, "scope": p.data_scope})
+    
+    return {
+        "id": current_user.id,
+        "name": current_user.name,
+        "email": current_user.email,
+        "role_id": current_user.role_id,
+        "role_name": current_user.role.name if current_user.role else None,
+        "permissions": perms
+    }

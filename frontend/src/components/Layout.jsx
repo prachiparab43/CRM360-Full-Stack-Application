@@ -20,7 +20,7 @@ export default function Layout() {
     { name: 'Reports', path: '/reports', icon: LayoutDashboard },
   ];
 
-  if (user?.role_id === 1) { 
+  if (user?.role?.name === 'System Administrator') { 
      navs.push({ name: 'Employees', path: '/employees', icon: UserSquare2 });
      navs.push({ name: 'Companies', path: '/companies', icon: Building2 });
      navs.push({ name: 'Roles', path: '/roles', icon: Users });
