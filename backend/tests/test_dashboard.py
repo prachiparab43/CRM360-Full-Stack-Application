@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from main import app
-from app.db.session import SessionLocal
+from tests.conftest import TestingSessionLocal as SessionLocal
 from app.models.domain import RolePermission, Role
 
 client = TestClient(app)
@@ -47,3 +47,4 @@ def test_csv_export(admin_token):
     assert res.headers["content-type"] == "text/csv; charset=utf-8"
     content = res.content.decode("utf-8")
     assert "Expected Value" in content
+

@@ -4,6 +4,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from app.api import deps
+from app.api.endpoints.dashboard import apply_scope
 from app.models.domain import GeoTracking, CustomerVisit, Employee
 from app.schemas.tracking import (
     GeoTrackingBase, GeoTrackingResponse,
@@ -113,7 +114,7 @@ def visit_check_in(
     db: Session = Depends(deps.get_db),
     auth_info: dict = Depends(deps.PermissionChecker("Visit", "Edit"))
 ):
-    visit = db.query(CustomerVisit).filter(CustomerVisit.id == visit_id).first()
+    visit = apply_scope(db.query(CustomerVisit).filter(CustomerVisit.id == visit_id), CustomerVisit, auth_info).first()
     if not visit: raise HTTPException(404, "Visit not found")
     if visit.status != "Scheduled": raise HTTPException(400, "Visit is not in Scheduled status.")
     
@@ -133,7 +134,7 @@ def visit_check_out(
     db: Session = Depends(deps.get_db),
     auth_info: dict = Depends(deps.PermissionChecker("Visit", "Edit"))
 ):
-    visit = db.query(CustomerVisit).filter(CustomerVisit.id == visit_id).first()
+    visit = apply_scope(db.query(CustomerVisit).filter(CustomerVisit.id == visit_id), CustomerVisit, auth_info).first()
     if not visit: raise HTTPException(404, "Visit not found")
     if visit.status != "InProgress": raise HTTPException(400, "Visit must be InProgress to check out.")
     

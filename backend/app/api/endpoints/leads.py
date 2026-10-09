@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.api import deps
+from app.api.endpoints.dashboard import apply_scope
 from app.models.domain import Lead, Opportunity, Employee
 from app.schemas.lead import LeadCreate, LeadUpdate, LeadResponse, LeadQualify, LeadDisqualify
 from app.core.audit import log_action
@@ -58,7 +59,7 @@ def update_lead(
     lead_in: LeadUpdate,
     auth_info: dict = Depends(deps.PermissionChecker("Lead", "Edit")),
 ):
-    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    lead = apply_scope(db.query(Lead).filter(Lead.id == lead_id), Lead, auth_info).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
         
@@ -91,7 +92,7 @@ def qualify_lead(
     qualify_in: LeadQualify,
     auth_info: dict = Depends(deps.PermissionChecker("Lead", "Qualify Lead")),
 ):
-    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    lead = apply_scope(db.query(Lead).filter(Lead.id == lead_id), Lead, auth_info).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     if lead.status in ["Qualified", "Closed", "Disqualified"]:
@@ -133,7 +134,7 @@ def disqualify_lead(
     if not disqualify_in.reason or not disqualify_in.reason.strip():
         raise HTTPException(status_code=400, detail="Disqualification reason is required.")
         
-    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    lead = apply_scope(db.query(Lead).filter(Lead.id == lead_id), Lead, auth_info).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     if lead.status in ["Qualified", "Closed", "Disqualified"]:

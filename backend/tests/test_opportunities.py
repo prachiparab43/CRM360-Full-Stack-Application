@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from main import app
-from app.db.session import SessionLocal
+from tests.conftest import TestingSessionLocal as SessionLocal
 from app.models.domain import RolePermission, Role, Customer
 
 client = TestClient(app)
@@ -112,3 +112,4 @@ def test_duplicate_customer_prevention(admin_token):
     
     # Should link to the same customer ID
     assert res1.json()["customer_id"] == res2.json()["customer_id"]
+

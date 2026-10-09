@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from main import app
-from app.db.session import SessionLocal
+from tests.conftest import TestingSessionLocal as SessionLocal
 from app.models.domain import RolePermission, Role, Customer
 import uuid
 
@@ -82,3 +82,4 @@ def test_contact_crud(admin_token):
     # Delete
     res4 = client.delete(f"/api/contacts/{contact_id}", headers={"Authorization": f"Bearer {admin_token}"})
     assert res4.status_code == 200
+

@@ -67,3 +67,4 @@ def test_employee_deactivation_login_restriction():
     )
     assert res.status_code == 400
     assert res.json()["detail"] == "Inactive user"
+

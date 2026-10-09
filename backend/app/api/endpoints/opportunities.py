@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.api import deps
+from app.api.endpoints.dashboard import apply_scope
 from app.models.domain import Opportunity, Customer, Employee, Lead
 from app.schemas.opportunity import OpportunityCreate, OpportunityUpdate, OpportunityStageUpdate, OpportunityResponse
 from app.core.audit import log_action
@@ -57,7 +58,7 @@ def update_opportunity(
     opp_in: OpportunityUpdate,
     auth_info: dict = Depends(deps.PermissionChecker("Opportunity", "Edit")),
 ):
-    opp = db.query(Opportunity).filter(Opportunity.id == opp_id).first()
+    opp = apply_scope(db.query(Opportunity).filter(Opportunity.id == opp_id), Opportunity, auth_info).first()
     if not opp:
         raise HTTPException(status_code=404, detail="Opportunity not found")
     if opp.stage in ["Won", "Lost"]:
@@ -87,7 +88,7 @@ def change_stage(
     stage_in: OpportunityStageUpdate,
     auth_info: dict = Depends(deps.PermissionChecker("Opportunity", "Change Stage")),
 ):
-    opp = db.query(Opportunity).filter(Opportunity.id == opp_id).first()
+    opp = apply_scope(db.query(Opportunity).filter(Opportunity.id == opp_id), Opportunity, auth_info).first()
     if not opp:
         raise HTTPException(status_code=404, detail="Opportunity not found")
         
@@ -112,7 +113,7 @@ def change_stage(
         try:
             customer_name = opp.name.replace(" - Opportunity", "")
             if opp.lead_id:
-                lead = db.query(Lead).filter(Lead.id == opp.lead_id).first()
+                lead = apply_scope(db.query(Lead).filter(Lead.id == opp.lead_id), Lead, auth_info).first()
                 if lead and lead.company:
                     customer_name = lead.company
 

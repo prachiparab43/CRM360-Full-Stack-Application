@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from main import app
-from app.db.session import SessionLocal
+from tests.conftest import TestingSessionLocal as SessionLocal
 from app.models.domain import Opportunity, RolePermission, Role
 
 client = TestClient(app)
@@ -100,3 +100,4 @@ def test_unauthorized_access():
     assert res.status_code == 401 # No token
 
     # Note: RBAC 403 Forbidden is already covered generically in test_rbac.py
+

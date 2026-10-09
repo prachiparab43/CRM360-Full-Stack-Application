@@ -35,3 +35,4 @@ def test_read_users_me():
     assert response.status_code == 200
     assert response.json()["email"] == "admin@crm360.com"
     assert response.json()["name"] == "System Admin"
+

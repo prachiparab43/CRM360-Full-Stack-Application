@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from main import app
-from app.db.session import SessionLocal
+from tests.conftest import TestingSessionLocal as SessionLocal
 from app.models.domain import RolePermission, Role, Customer
 
 client = TestClient(app)
@@ -78,3 +78,4 @@ def test_visit_workflow(admin_token, setup_tracking_permissions):
 def test_unauthorized_location_access():
     res = client.get("/api/tracking/latest")
     assert res.status_code == 401
+

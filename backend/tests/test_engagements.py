@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from main import app
-from app.db.session import SessionLocal
+from tests.conftest import TestingSessionLocal as SessionLocal
 from app.models.domain import RolePermission, Role
 from datetime import datetime, timedelta
 
@@ -79,3 +79,4 @@ def test_meeting_scheduling_conflict(admin_token):
     # Now payload2 should succeed
     res4 = client.post("/api/meetings/", headers={"Authorization": f"Bearer {admin_token}"}, json=payload2)
     assert res4.status_code == 200
+

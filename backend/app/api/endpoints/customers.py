@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.api import deps
+from app.api.endpoints.dashboard import apply_scope
 from app.models.domain import Customer, Employee
 from app.schemas.customer import CustomerCreate, CustomerUpdate, CustomerResponse
 from app.core.audit import log_action
@@ -58,7 +59,7 @@ def update_customer(
     customer_in: CustomerUpdate,
     auth_info: dict = Depends(deps.PermissionChecker("Customer", "Edit")),
 ):
-    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    customer = apply_scope(db.query(Customer).filter(Customer.id == customer_id), Customer, auth_info).first()
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
 

@@ -4,6 +4,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from app.api import deps
+from app.api.endpoints.dashboard import apply_scope
 from app.models.domain import Activity, Task, Meeting
 from app.schemas.engagement import (
     ActivityCreate, ActivityUpdate, ActivityResponse,
@@ -55,7 +56,7 @@ def get_tasks(
 
 @router_tasks.put("/{task_id}", response_model=TaskResponse)
 def update_task(task_id: int, task_in: TaskUpdate, db: Session = Depends(deps.get_db), auth_info: dict = Depends(deps.PermissionChecker("Task", "Edit"))):
-    task = db.query(Task).filter(Task.id == task_id).first()
+    task = apply_scope(db.query(Task).filter(Task.id == task_id), Task, auth_info).first()
     if not task: raise HTTPException(404, "Task not found")
     
     update_data = task_in.model_dump(exclude_unset=True)
@@ -103,7 +104,7 @@ def create_meeting(meeting_in: MeetingCreate, db: Session = Depends(deps.get_db)
 
 @router_meetings.put("/{meeting_id}", response_model=MeetingResponse)
 def update_meeting(meeting_id: int, meeting_in: MeetingUpdate, db: Session = Depends(deps.get_db), auth_info: dict = Depends(deps.PermissionChecker("Meeting", "Edit"))):
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    meeting = apply_scope(db.query(Meeting).filter(Meeting.id == meeting_id), Meeting, auth_info).first()
     if not meeting: raise HTTPException(404, "Meeting not found")
     
     update_data = meeting_in.model_dump(exclude_unset=True)
