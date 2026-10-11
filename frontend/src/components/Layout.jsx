@@ -30,7 +30,7 @@ export default function Layout() {
     <div className="flex h-screen bg-gray-100 font-sans text-gray-900 overflow-hidden">
       {/* Mobile header */}
       <div className="md:hidden absolute top-0 left-0 w-full h-16 bg-slate-900 text-white flex items-center justify-between px-4 z-20 shadow-md">
-        <Logo variant="light" className="scale-75 origin-left" />
+        <Logo variant="light" size="sm" />
         <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-gray-300 hover:text-white">
           {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
@@ -44,7 +44,7 @@ export default function Layout() {
       {/* Sidebar */}
       <aside className={`fixed md:relative top-0 left-0 h-full w-64 bg-slate-900 text-white flex flex-col shadow-xl z-30 transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="p-5 border-b border-slate-800 hidden md:flex items-center">
-          <Logo variant="light" className="scale-90 origin-left" />
+          <Logo variant="light" size="default" />
         </div>
         <div className="p-5 border-b border-slate-800 flex items-center justify-between md:hidden">
           <span className="text-xl font-bold tracking-wider">Menu</span>

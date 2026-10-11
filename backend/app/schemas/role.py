@@ -27,6 +27,7 @@ class RoleUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
+    permissions: Optional[List[RolePermissionCreate]] = None
 
 class RoleResponse(RoleBase):
     id: int

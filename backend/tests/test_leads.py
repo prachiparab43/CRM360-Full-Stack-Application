@@ -22,7 +22,7 @@ def setup_lead_permissions():
         db.commit()
     db.close()
 
-def test_lead_creation(admin_token, setup_lead_permissions):
+def _create_lead(admin_token):
     res = client.post(
         "/api/leads/",
         headers={"Authorization": f"Bearer {admin_token}"},
@@ -31,6 +31,10 @@ def test_lead_creation(admin_token, setup_lead_permissions):
     assert res.status_code == 200
     assert res.json()["status"] == "New"
     return res.json()["id"]
+
+def test_lead_creation(admin_token, setup_lead_permissions):
+    lead_id = _create_lead(admin_token)
+    assert lead_id is not None
 
 def test_lead_retrieval(admin_token):
     res = client.get(
@@ -42,7 +46,7 @@ def test_lead_retrieval(admin_token):
 
 def test_lead_reassignment(admin_token):
     # First create a lead
-    lead_id = test_lead_creation(admin_token, None)
+    lead_id = _create_lead(admin_token)
     
     # Reassign (we just simulate assigning to an employee ID, let's use employee ID 1, the admin)
     res = client.put(
@@ -55,7 +59,7 @@ def test_lead_reassignment(admin_token):
     assert res.json()["status"] == "Contacted"
 
 def test_lead_qualification(admin_token):
-    lead_id = test_lead_creation(admin_token, None)
+    lead_id = _create_lead(admin_token)
     
     # Qualify
     res = client.post(
@@ -74,7 +78,7 @@ def test_lead_qualification(admin_token):
     db.close()
 
 def test_duplicate_qualification_prevention(admin_token):
-    lead_id = test_lead_creation(admin_token, None)
+    lead_id = _create_lead(admin_token)
     client.post(f"/api/leads/{lead_id}/qualify", headers={"Authorization": f"Bearer {admin_token}"}, json={})
     
     # Try again
@@ -83,7 +87,7 @@ def test_duplicate_qualification_prevention(admin_token):
     assert "Cannot qualify" in res2.json()["detail"]
 
 def test_lead_disqualification(admin_token):
-    lead_id = test_lead_creation(admin_token, None)
+    lead_id = _create_lead(admin_token)
     
     # Try without reason (should fail)
     res = client.post(f"/api/leads/{lead_id}/disqualify", headers={"Authorization": f"Bearer {admin_token}"}, json={"reason": ""})

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.api import deps
 from app.api.endpoints.dashboard import apply_scope
@@ -117,7 +117,7 @@ def visit_check_in(
     if visit.status != "Scheduled": raise HTTPException(400, "Visit is not in Scheduled status.")
     
     visit.status = "InProgress"
-    visit.check_in_time = datetime.utcnow()
+    visit.check_in_time = datetime.now(timezone.utc)
     visit.check_in_latitude = loc_in.latitude
     visit.check_in_longitude = loc_in.longitude
     db.commit()
@@ -137,7 +137,7 @@ def visit_check_out(
     if visit.status != "InProgress": raise HTTPException(400, "Visit must be InProgress to check out.")
     
     visit.status = "Completed"
-    visit.check_out_time = datetime.utcnow()
+    visit.check_out_time = datetime.now(timezone.utc)
     visit.check_out_latitude = loc_in.latitude
     visit.check_out_longitude = loc_in.longitude
     if loc_in.remarks: visit.remarks = loc_in.remarks

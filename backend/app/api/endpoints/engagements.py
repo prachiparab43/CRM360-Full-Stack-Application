@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.api import deps
 from app.api.endpoints.dashboard import apply_scope
@@ -59,7 +59,7 @@ def update_task(task_id: int, task_in: TaskUpdate, db: Session = Depends(deps.ge
     
     update_data = task_in.model_dump(exclude_unset=True)
     if "status" in update_data and update_data["status"] == "Completed" and task.status != "Completed":
-        task.completion_date = datetime.utcnow()
+        task.completion_date = datetime.now(timezone.utc)
         
     for k, v in update_data.items(): setattr(task, k, v)
     db.commit()
