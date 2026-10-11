@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Boolean, Date, Time
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Boolean, Date, Time, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.session import Base
@@ -47,8 +47,19 @@ class Employee(Base):
     role_id = Column(Integer, ForeignKey("roles.id"))
     company_id = Column(Integer, ForeignKey("companies.id"))
     password_hash = Column(String(255))
+    google_sub = Column(String(255), nullable=True)
+    auth_provider = Column(String(50), default="local")
     status = Column(String(50), default="Active")
     joining_date = Column(Date)
+
+    __table_args__ = (
+        Index(
+            "ix_employees_google_sub",
+            "google_sub",
+            unique=True,
+            mssql_where="google_sub IS NOT NULL",
+        ),
+    )
 
     role = relationship("Role", back_populates="employees")
     company = relationship("Company", back_populates="employees")

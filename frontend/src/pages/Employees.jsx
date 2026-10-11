@@ -37,6 +37,8 @@ export default function Employees() {
     try {
       const payload = { ...formData };
       if (!payload.password) delete payload.password;
+      payload.role_id = payload.role_id ? parseInt(payload.role_id, 10) : null;
+      payload.company_id = payload.company_id ? parseInt(payload.company_id, 10) : null;
       
       if (editingId) {
         await api.put(`/employees/${editingId}`, payload);
@@ -82,18 +84,43 @@ export default function Employees() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {employees.map(e => (
-              <tr key={e.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 font-medium text-gray-900">{e.name}</td>
-                <td className="px-6 py-4"><div className="text-sm">{e.email}</div></td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-1 text-xs rounded-full ${e.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{e.status}</span>
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <button onClick={() => openEdit(e)} className="text-blue-600 hover:text-blue-900"><Edit size={18} /></button>
+            {loading ? (
+              <tr>
+                <td colSpan="4" className="px-6 py-12 text-center text-gray-400">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-5 h-5 border-2 border-blue-600/20 border-t-blue-600 rounded-full animate-spin" />
+                    <span>Loading employees...</span>
+                  </div>
                 </td>
               </tr>
-            ))}
+            ) : employees.length === 0 ? (
+              <tr>
+                <td colSpan="4" className="px-6 py-12 text-center text-gray-500 text-sm">
+                  No employees found matching your search.
+                </td>
+              </tr>
+            ) : (
+              employees.map(e => (
+                <tr key={e.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 font-medium text-gray-900">{e.name}</td>
+                  <td className="px-6 py-4"><div className="text-sm">{e.email}</div></td>
+                  <td className="px-6 py-4">
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      e.status === 'Active' 
+                        ? 'bg-green-100 text-green-800' 
+                        : e.status === 'Pending_Approval'
+                        ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {e.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button onClick={() => openEdit(e)} className="text-blue-600 hover:text-blue-900"><Edit size={18} /></button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -120,7 +147,9 @@ export default function Employees() {
               </div>
               <div><label className="block text-sm font-medium mb-1">Status</label>
                 <select value={formData.status} onChange={e=>setFormData({...formData, status: e.target.value})} className="w-full p-2 border rounded outline-none">
-                  <option>Active</option><option>Inactive</option>
+                  <option value="Active">Active</option>
+                  <option value="Pending_Approval">Pending_Approval</option>
+                  <option value="Inactive">Inactive</option>
                 </select>
               </div>
               <div className="flex justify-end gap-3 pt-4">

@@ -10,6 +10,16 @@ class Token(BaseModel):
 class TokenPayload(BaseModel):
     sub: Optional[int] = None
 
+class GoogleAuthRequest(BaseModel):
+    id_token: str
+
+class GoogleAuthResponse(BaseModel):
+    access_token: Optional[str] = None
+    token_type: Optional[str] = "bearer"
+    status: str # "Active" or "Pending_Approval"
+    message: Optional[str] = None
+    user: Optional[dict] = None
+
 class EmployeeBase(BaseModel):
     name: str
     email: EmailStr

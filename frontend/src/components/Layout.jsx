@@ -1,29 +1,66 @@
 import { useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Users, UserSquare2, Briefcase, Building2, MapPin, LogOut, Menu, X } from 'lucide-react';
+import { 
+  LayoutDashboard, 
+  Users, 
+  UserSquare2, 
+  Briefcase, 
+  Building2, 
+  MapPin, 
+  CalendarCheck,
+  BarChart3,
+  Contact,
+  Shield,
+  LogOut, 
+  Menu, 
+  X, 
+  Settings as SettingsIcon 
+} from 'lucide-react';
 import Logo from './Logo';
 
 export default function Layout() {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
+
   const navs = [
-    { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Leads', path: '/leads', icon: Users },
     { name: 'Opportunities', path: '/opportunities', icon: Briefcase },
     { name: 'Customers', path: '/customers', icon: Building2 },
-    { name: 'Contacts', path: '/contacts', icon: Users },
-    { name: 'Tasks & Meetings', path: '/engagements', icon: MapPin },
+    { name: 'Contacts', path: '/contacts', icon: Contact },
+    { name: 'Tasks & Meetings', path: '/engagements', icon: CalendarCheck },
     { name: 'Geo-Tracking', path: '/tracking', icon: MapPin },
-    { name: 'Reports', path: '/reports', icon: LayoutDashboard },
+    { name: 'Reports', path: '/reports', icon: BarChart3 },
   ];
 
-  if (user?.role?.name === 'System Administrator') { 
+  const isAdmin = user?.role_name === 'System Administrator' || 
+                  user?.role?.name === 'System Administrator' ||
+                  user?.permissions?.some(p => p.module === 'Admin' || (p.module === 'Employee' && p.action === 'View'));
+
+  if (isAdmin) { 
      navs.push({ name: 'Employees', path: '/employees', icon: UserSquare2 });
+  }
+
+  const canManageCompanies = user?.role_name === 'System Administrator' || 
+                             user?.role?.name === 'System Administrator' ||
+                             user?.permissions?.some(p => p.module === 'Admin' || (p.module === 'Company' && p.action === 'View'));
+  if (canManageCompanies) {
      navs.push({ name: 'Companies', path: '/companies', icon: Building2 });
-     navs.push({ name: 'Roles', path: '/roles', icon: Users });
+  }
+
+  const canManageRoles = user?.role_name === 'System Administrator' || 
+                         user?.role?.name === 'System Administrator' ||
+                         user?.permissions?.some(p => p.module === 'Admin' || (p.module === 'Role' && p.action === 'View'));
+  if (canManageRoles) {
+     navs.push({ name: 'Roles', path: '/roles', icon: Shield });
   }
 
   return (
@@ -52,7 +89,7 @@ export default function Layout() {
         </div>
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {navs.map((n) => {
-            const active = location.pathname === n.path || (n.path !== '/' && location.pathname.startsWith(n.path));
+            const active = location.pathname === n.path || (n.path !== '/dashboard' && location.pathname.startsWith(n.path));
             return (
               <Link 
                 key={n.path} 
@@ -65,6 +102,22 @@ export default function Layout() {
               </Link>
             )
           })}
+
+          {/* Settings Navigation Item */}
+          <div className="pt-2 border-t border-slate-800/80">
+            <Link
+              to="/settings"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                location.pathname === '/settings' 
+                  ? 'bg-blue-600 text-white shadow-md' 
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <SettingsIcon size={20} />
+              <span className="font-medium">Settings</span>
+            </Link>
+          </div>
         </nav>
         <div className="p-4 border-t border-slate-800 bg-slate-950">
           <div className="flex items-center gap-3 mb-4">
@@ -76,7 +129,7 @@ export default function Layout() {
               <div className="text-xs text-slate-400 truncate">{user?.email}</div>
             </div>
           </div>
-          <button onClick={logout} className="flex items-center justify-center gap-2 text-slate-300 hover:text-white hover:bg-slate-800 w-full px-3 py-2 rounded-md transition-colors">
+          <button onClick={handleLogout} className="flex items-center justify-center gap-2 text-slate-300 hover:text-white hover:bg-slate-800 w-full px-3 py-2 rounded-md transition-colors cursor-pointer">
             <LogOut size={18} /> <span className="font-medium">Logout</span>
           </button>
         </div>

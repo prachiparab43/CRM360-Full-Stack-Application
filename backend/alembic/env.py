@@ -21,8 +21,9 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Overwrite sqlalchemy.url with our settings
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Overwrite sqlalchemy.url with our settings or explicit override
+database_url = os.getenv("ALEMBIC_DATABASE_URL") or settings.DATABASE_URL
+config.set_main_option("sqlalchemy.url", database_url)
 
 target_metadata = Base.metadata
 
