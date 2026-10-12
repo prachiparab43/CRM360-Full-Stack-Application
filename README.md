@@ -73,19 +73,29 @@ CRM360 is a modern, enterprise-grade, full-stack Customer Relationship Managemen
    Copy-Item .env.example .env
    ```
    Open `.env` and configure:
-   - `DATABASE_URL`: Connection string to your SQL Server instance.
+   - `DATABASE_URL`: Connection string to your SQL Server instance (e.g., `mssql+pyodbc://username:password@localhost/CRM360?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes` or Windows Authentication `Trusted_Connection=yes`).
    - `SECRET_KEY`: A secure 32+ character random string.
-   - `GOOGLE_CLIENT_ID`: (Optional) Your Google OAuth Web Client ID.
+   - `GOOGLE_CLIENT_ID`: (Optional) Your Google OAuth 2.0 Web Client ID.
 
 5. Apply database migrations:
    ```powershell
    alembic upgrade head
    ```
 
-6. Seed the initial Administrator account:
+6. Bootstrap the initial Administrator account:
+   The backend provides `create_admin.py` to seed the System Administrator role, permissions, company, and initial admin employee.
+   
+   You can specify your desired administrator email and password via environment variables prior to running the script:
    ```powershell
+   # PowerShell
+   $env:ADMIN_EMAIL="admin@example.com"
+   $env:ADMIN_PASSWORD="YourSecurePassword123!"
    python create_admin.py
    ```
+   *(On bash/Linux/macOS, use `export ADMIN_EMAIL="admin@example.com"` and `export ADMIN_PASSWORD="YourSecurePassword123!"`).*
+
+   > [!NOTE]
+   > If `ADMIN_PASSWORD` is not set in the environment, `create_admin.py` automatically generates a secure, randomized one-time password and prints it to the terminal console during initialization.
 
 7. Start the FastAPI development server:
    ```powershell
@@ -107,8 +117,8 @@ CRM360 is a modern, enterprise-grade, full-stack Customer Relationship Managemen
    Copy-Item .env.example .env
    ```
    In `.env`:
-   - `VITE_API_URL=http://localhost:8000/api`
-   - `VITE_GOOGLE_CLIENT_ID`: (Optional) Same Google OAuth Web Client ID as backend.
+   - `VITE_API_URL=/api`: Relative API path (seamlessly handled by Vite's development reverse proxy to `http://127.0.0.1:8000`).
+   - `VITE_GOOGLE_CLIENT_ID`: (Optional) Same Google OAuth Web Client ID configured in the backend.
 
 3. Install Node.js dependencies:
    ```powershell
@@ -123,7 +133,46 @@ CRM360 is a modern, enterprise-grade, full-stack Customer Relationship Managemen
 
 ---
 
-## 4. Production Build & Optimization
+## 4. Evaluator Walkthrough: Creating Demo Accounts & RBAC
+
+Once logged into the application using your bootstrapped administrator credentials:
+
+### A. Creating a Demo Employee Account
+1. In the sidebar, navigate to **Employees** (`/employees`).
+2. Click **Add Employee**.
+3. Fill in the demo employee's Name, Email, and initial Password.
+4. Select an existing Company (e.g., `CRM360 Internal`) and Role (e.g., `Sales Representative` or custom role).
+5. Ensure the Status is set to **Active**.
+6. Save the record. You can now open a private/incognito browser window and sign in using the demo employee's email and password.
+
+### B. Configuring Custom Roles and Permissions (RBAC)
+1. In the sidebar, navigate to **Roles** (`/roles`).
+2. Click **Add Role** or edit an existing role.
+3. Define the role name, description, and status.
+4. Assign granular CRUD permissions per module:
+   - **Modules:** `Lead`, `Opportunity`, `Customer`, `Contact`, `Activity`, `Task`, `Meeting`, `Employee`, `Company`, `Role`.
+   - **Actions:** `View`, `Create`, `Edit`, `Delete`.
+   - **Data Scopes:**
+     - `Own`: Access restricted to records owned/created by the employee.
+     - `Team`: Access restricted to records within the employee's department/team.
+     - `Company`: Access restricted to records within the employee's assigned company.
+     - `All`: Unrestricted cross-company access (System Administrator).
+
+### C. Google Sign In & Zero-Trust Quarantine Workflow
+1. If Google OAuth is configured, users can click **Sign in with Google** on the landing page or login screen.
+2. When a new user authenticates with Google for the first time:
+   - The backend cryptographically validates the token with Google JWKS.
+   - The user account is automatically provisioned in a quarantined state: `status = 'Pending_Approval'` with **no Company, Role, or data permissions**.
+   - The user is redirected to the `/pending-approval` holding screen and cannot access protected CRM data or endpoints.
+3. **Administrator Approval:**
+   - The System Administrator logs into CRM360 and navigates to **Employees**.
+   - The new user appears in the employee list marked with a `Pending_Approval` badge.
+   - The administrator edits the employee, assigns an authorized **Company** and **Role**, sets the status to **Active**, and saves.
+   - Upon page refresh or subsequent login, the user's workspace is immediately unlocked with the permissions of their assigned role.
+
+---
+
+## 5. Production Build & Optimization
 
 The frontend uses route-level dynamic code-splitting (`React.lazy` and `Suspense`) and automated chunk isolation in Vite:
 ```powershell
@@ -136,7 +185,7 @@ npm run build
 
 ---
 
-## 5. Automated Testing
+## 6. Automated Testing
 
 All automated tests run against the isolated test database `CRM360_Test` without altering production records:
 ```powershell
