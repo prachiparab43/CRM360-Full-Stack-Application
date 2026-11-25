@@ -41,24 +41,17 @@ export default function Layout() {
     { name: 'Reports', path: '/reports', icon: BarChart3 },
   ];
 
-  const isAdmin = user?.role_name === 'System Administrator' || 
-                  user?.role?.name === 'System Administrator' ||
-                  user?.permissions?.some(p => p.module === 'Admin' || (p.module === 'Employee' && p.action === 'View'));
-
-  if (isAdmin) { 
+  const canViewEmployees = user?.permissions?.some(p => p.module === 'Employee' && p.action === 'View');
+  if (canViewEmployees) { 
      navs.push({ name: 'Employees', path: '/employees', icon: UserSquare2 });
   }
 
-  const canManageCompanies = user?.role_name === 'System Administrator' || 
-                             user?.role?.name === 'System Administrator' ||
-                             user?.permissions?.some(p => p.module === 'Admin' || (p.module === 'Company' && p.action === 'View'));
+  const canManageCompanies = user?.permissions?.some(p => p.module === 'Company' && p.action === 'View');
   if (canManageCompanies) {
      navs.push({ name: 'Companies', path: '/companies', icon: Building2 });
   }
 
-  const canManageRoles = user?.role_name === 'System Administrator' || 
-                         user?.role?.name === 'System Administrator' ||
-                         user?.permissions?.some(p => p.module === 'Admin' || (p.module === 'Role' && p.action === 'View'));
+  const canManageRoles = user?.permissions?.some(p => p.module === 'Role' && p.action === 'View');
   if (canManageRoles) {
      navs.push({ name: 'Roles', path: '/roles', icon: Shield });
   }

@@ -73,8 +73,8 @@ def test_pending_user_cannot_access_protected_endpoints():
         headers={"Authorization": f"Bearer {token}"}
     )
     # deps.get_current_active_user checks current_user.status == "Active"
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Inactive user"
+    assert response.status_code == 403
+    assert "Inactive" in response.json()["detail"]
 
 def test_google_auth_account_conflict_rejection():
     """

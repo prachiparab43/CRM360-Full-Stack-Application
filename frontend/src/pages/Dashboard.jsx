@@ -70,15 +70,24 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Opportunity Stage Pipeline */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h2 className="text-lg font-bold text-gray-900 mb-6">Opportunity Pipeline</h2>
+          <h2 className="text-lg font-bold text-gray-900 mb-6">Opportunity Pipeline Value</h2>
           <div className="h-72">
             {charts.opportunity_distribution.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={charts.opportunity_distribution} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <BarChart data={charts.opportunity_distribution} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                   <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fill: '#6b7280'}} />
-                  <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{fill: '#6b7280'}} />
-                  <RechartsTooltip cursor={{fill: '#f3f4f6'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{fill: '#6b7280'}} 
+                    tickFormatter={(v) => v === 0 ? '$0' : (v >= 1000 ? `$${(v / 1000).toLocaleString()}k` : `$${v}`)} 
+                  />
+                  <RechartsTooltip 
+                    cursor={{fill: '#f3f4f6'}} 
+                    formatter={(value) => [`$${Number(value).toLocaleString()}`, 'Pipeline Value']}
+                    contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} 
+                  />
                   <Bar dataKey="value" fill="#8b5cf6" radius={[4, 4, 0, 0]} maxBarSize={50} />
                 </BarChart>
               </ResponsiveContainer>

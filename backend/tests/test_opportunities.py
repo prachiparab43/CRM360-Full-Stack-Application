@@ -103,7 +103,13 @@ def test_duplicate_customer_prevention(admin_token):
     opp_id1 = create_base_opp(admin_token)
     opp_id2 = client.post("/api/opportunities/", headers={"Authorization": f"Bearer {admin_token}"}, json={"name": "Deal with Wayne Enterprises", "expected_value": 50000}).json()["id"]
     
-    # Win both
+    # Transition both through Opportunity -> Proposal -> Negotiation -> Won
+    for oid in [opp_id1, opp_id2]:
+        p_res = client.post(f"/api/opportunities/{oid}/stage", headers={"Authorization": f"Bearer {admin_token}"}, json={"stage": "Proposal"})
+        assert p_res.status_code == 200
+        n_res = client.post(f"/api/opportunities/{oid}/stage", headers={"Authorization": f"Bearer {admin_token}"}, json={"stage": "Negotiation"})
+        assert n_res.status_code == 200
+
     res1 = client.post(f"/api/opportunities/{opp_id1}/stage", headers={"Authorization": f"Bearer {admin_token}"}, json={"stage": "Won"})
     res2 = client.post(f"/api/opportunities/{opp_id2}/stage", headers={"Authorization": f"Bearer {admin_token}"}, json={"stage": "Won"})
     

@@ -51,5 +51,5 @@ def verify_google_id_token(token_str: str) -> dict:
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Google token verification failed: {str(e)}"
+            detail=f"Invalid or expired Google token: {str(e)}"
         )

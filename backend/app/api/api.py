@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.endpoints import auth, roles, companies, employees, leads, opportunities, customers, contacts, engagements, tracking, dashboard, reports
+from app.api.endpoints import auth, roles, companies, employees, leads, opportunities, customers, contacts, engagements, tracking, dashboard, reports, audit
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
@@ -17,3 +17,4 @@ api_router.include_router(tracking.router_tracking, prefix="/tracking", tags=["t
 api_router.include_router(tracking.router_visits, prefix="/visits", tags=["visits"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
+api_router.include_router(audit.router, prefix="/audit-logs", tags=["audit_logs"])

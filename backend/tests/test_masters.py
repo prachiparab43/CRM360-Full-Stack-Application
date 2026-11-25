@@ -29,7 +29,8 @@ def test_company_retrieval(admin_token):
 
 def test_company_update(admin_token):
     # Get the latest company
-    companies = client.get("/api/companies/", headers={"Authorization": f"Bearer {admin_token}"}).json()
+    data = client.get("/api/companies/", headers={"Authorization": f"Bearer {admin_token}"}).json()
+    companies = data.get("items", data)
     company_id = [c["id"] for c in companies if c["name"] == "Acme Corp"][0]
     
     res = client.put(
@@ -65,6 +66,6 @@ def test_employee_deactivation_login_restriction():
         "/api/auth/login",
         data={"username": "john@acmecorp.com", "password": "Password123!"}
     )
-    assert res.status_code == 400
-    assert res.json()["detail"] == "Inactive user"
+    assert res.status_code == 403
+    assert "Inactive" in res.json()["detail"]
 

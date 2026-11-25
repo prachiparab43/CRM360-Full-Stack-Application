@@ -13,7 +13,20 @@ api.interceptors.request.use(config => {
 });
 
 api.interceptors.response.use(
-  response => response,
+  response => {
+    // Standardize paginated responses { items: [...], total, skip, limit }
+    // Attach pagination metadata directly onto items array so both
+    // flat array usage (res.data.map) and paginated usage (res.data.total) work seamlessly
+    if (response.data && typeof response.data === 'object' && Array.isArray(response.data.items)) {
+      const items = response.data.items;
+      items.total = response.data.total;
+      items.skip = response.data.skip;
+      items.limit = response.data.limit;
+      items.items = items;
+      response.data = items;
+    }
+    return response;
+  },
   error => {
     if (error.response && error.response.status === 401) {
       localStorage.removeItem('token');

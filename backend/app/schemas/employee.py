@@ -28,6 +28,7 @@ class EmployeeBase(BaseModel):
     designation: Optional[str] = None
     role_id: Optional[int] = None
     company_id: Optional[int] = None
+    manager_id: Optional[int] = None
     status: Optional[str] = "Active"
     joining_date: Optional[date] = None
 
@@ -42,6 +43,7 @@ class EmployeeUpdate(BaseModel):
     designation: Optional[str] = None
     role_id: Optional[int] = None
     company_id: Optional[int] = None
+    manager_id: Optional[int] = None
     status: Optional[str] = None
     password: Optional[str] = None
 

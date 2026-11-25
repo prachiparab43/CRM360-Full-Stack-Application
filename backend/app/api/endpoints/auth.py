@@ -1,11 +1,12 @@
 from datetime import timedelta
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.api import deps
 from app.core import security
+from app.core.audit import log_action
 from app.core.google_auth import verify_google_id_token
 from app.models.domain import Employee
 from app.schemas.employee import Token, GoogleAuthRequest, GoogleAuthResponse
@@ -13,14 +14,48 @@ from app.schemas.employee import Token, GoogleAuthRequest, GoogleAuthResponse
 router = APIRouter()
 
 @router.post("/login", response_model=Token)
-def login_access_token(db: Session = Depends(deps.get_db), form_data: OAuth2PasswordRequestForm = Depends()) -> Any:
+def login_access_token(
+    request: Request,
+    db: Session = Depends(deps.get_db),
+    form_data: OAuth2PasswordRequestForm = Depends()
+) -> Any:
     """OAuth2 compatible token login, get an access token for future requests"""
+    client_ip = request.client.host if request and request.client else "unknown"
+    rate_limit_key = f"{client_ip}:{form_data.username}"
+    security.check_login_rate_limit(rate_limit_key)
+
     user = db.query(Employee).filter(Employee.email == form_data.username).first()
     if not user or not security.verify_password(form_data.password, user.password_hash):
+        log_action(
+            db=db,
+            user_id=user.id if user else None,
+            action="Login Failed",
+            module="Auth",
+            record_id=user.id if user else 0,
+            new_val=f"Failed login attempt for {form_data.username}"
+        )
         raise HTTPException(status_code=400, detail="Incorrect email or password")
+        
     if user.status != "Active":
-        raise HTTPException(status_code=400, detail="Inactive user")
+        log_action(
+            db=db,
+            user_id=user.id,
+            action="Login Blocked",
+            module="Auth",
+            record_id=user.id,
+            new_val=f"Inactive account: {user.status}"
+        )
+        raise HTTPException(status_code=403, detail="Inactive user")
     
+    log_action(
+        db=db,
+        user_id=user.id,
+        action="Login Success",
+        module="Auth",
+        record_id=user.id,
+        new_val="User logged in"
+    )
+
     access_token_expires = timedelta(minutes=security.ACCESS_TOKEN_EXPIRE_MINUTES)
     return {
         "access_token": security.create_access_token(user.id, expires_delta=access_token_expires),
@@ -45,7 +80,6 @@ def login_google(
     google_name = google_data.get("name") or google_email.split("@")[0]
 
     # 2. Check if a user with this google_sub already exists
-    # If the column google_sub exists on Employee, query by it, otherwise fallback check by email
     user = None
     if hasattr(Employee, "google_sub"):
         user = db.query(Employee).filter(Employee.google_sub == google_sub).first()
@@ -60,7 +94,6 @@ def login_google(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="An account with this email already exists with password login. Please sign in with your email and password first."
                 )
-            # If the user has no password_hash and was previously created, link the google_sub
             user = existing_email_user
             if hasattr(user, "google_sub"):
                 user.google_sub = google_sub
@@ -89,6 +122,14 @@ def login_google(
 
     # 5. Check user status for gating
     if user.status != "Active":
+        log_action(
+            db=db,
+            user_id=user.id,
+            action="Google Login Blocked",
+            module="Auth",
+            record_id=user.id,
+            new_val=f"Pending approval: {user.status}"
+        )
         return {
             "status": "Pending_Approval",
             "message": "Your account is pending administrator approval. Company and role assignment are required before accessing workspace.",
@@ -101,6 +142,15 @@ def login_google(
         }
 
     # 6. Active approved user: Issue standard CRM360 JWT
+    log_action(
+        db=db,
+        user_id=user.id,
+        action="Google Login Success",
+        module="Auth",
+        record_id=user.id,
+        new_val="Google user logged in"
+    )
+
     access_token_expires = timedelta(minutes=security.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = security.create_access_token(user.id, expires_delta=access_token_expires)
     
@@ -122,9 +172,7 @@ def login_google(
 def read_users_me(current_user: Employee = Depends(deps.get_current_active_user)) -> Any:
     """Get current user."""
     perms = []
-    if current_user.role:
-        if current_user.role.name == "System Administrator":
-            perms.append({"module": "Admin", "action": "All"})
+    if current_user.role and current_user.role.status == "Active":
         for p in current_user.role.permissions:
             perms.append({"module": p.module, "action": p.action, "scope": p.data_scope})
     
@@ -134,5 +182,7 @@ def read_users_me(current_user: Employee = Depends(deps.get_current_active_user)
         "email": current_user.email,
         "role_id": current_user.role_id,
         "role_name": current_user.role.name if current_user.role else None,
+        "company_id": current_user.company_id,
+        "manager_id": current_user.manager_id,
         "permissions": perms
     }

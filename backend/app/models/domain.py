@@ -22,6 +22,7 @@ class Role(Base):
     name = Column(String(100), unique=True, nullable=False)
     description = Column(Text)
     status = Column(String(50), default="Active")
+    is_system = Column(Boolean, default=False, nullable=False, server_default='0')
 
     permissions = relationship("RolePermission", back_populates="role", cascade="all, delete-orphan")
     employees = relationship("Employee", back_populates="role")
@@ -46,6 +47,7 @@ class Employee(Base):
     designation = Column(String(100))
     role_id = Column(Integer, ForeignKey("roles.id"))
     company_id = Column(Integer, ForeignKey("companies.id"))
+    manager_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
     password_hash = Column(String(255))
     google_sub = Column(String(255), nullable=True)
     auth_provider = Column(String(50), default="local")
@@ -61,6 +63,7 @@ class Employee(Base):
         ),
     )
 
+    manager = relationship("Employee", remote_side=[id], backref="subordinates")
     role = relationship("Role", back_populates="employees")
     company = relationship("Company", back_populates="employees")
 
@@ -111,6 +114,7 @@ class Opportunity(Base):
     description = Column(Text)
     notes = Column(Text)
     lost_reason = Column(Text)
+    created_date = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     lead = relationship("Lead", back_populates="opportunity")
     customer = relationship("Customer")
@@ -182,8 +186,12 @@ class GeoTracking(Base):
     longitude = Column(Float, nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
     location_info = Column(String(255))
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
+    visit_id = Column(Integer, ForeignKey("customer_visits.id"), nullable=True)
     
     employee = relationship("Employee")
+    customer = relationship("Customer")
+    visit = relationship("CustomerVisit")
 
 class CustomerVisit(Base):
     __tablename__ = "customer_visits"
@@ -218,3 +226,5 @@ class AuditLog(Base):
     new_value = Column(Text)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
     request_info = Column(Text)
+
+    user = relationship("Employee")

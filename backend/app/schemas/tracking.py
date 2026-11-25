@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional
 from datetime import date, datetime
 
@@ -8,6 +8,8 @@ class CoordinateBase(BaseModel):
 
 class GeoTrackingBase(CoordinateBase):
     location_info: Optional[str] = None
+    customer_id: Optional[int] = None
+    visit_id: Optional[int] = None
 
 class GeoTrackingCreate(GeoTrackingBase):
     type: str  # CheckIn, CheckOut, Live

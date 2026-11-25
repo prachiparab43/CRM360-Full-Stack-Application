@@ -37,6 +37,7 @@ class LeadResponse(LeadBase):
     id: int
     status: str
     disqualified_reason: Optional[str] = None
-    created_date: Optional[datetime]
+    created_date: Optional[datetime] = None
+    warning: Optional[str] = None
     class Config:
         from_attributes = True

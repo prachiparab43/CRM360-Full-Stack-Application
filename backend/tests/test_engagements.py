@@ -48,7 +48,8 @@ def test_task_crud_and_overdue(admin_token):
     
     # Read Overdue
     res = client.get("/api/tasks/?overdue=true", headers={"Authorization": f"Bearer {admin_token}"})
-    assert any(t["id"] == task_id for t in res.json())
+    tasks = res.json().get("items", res.json())
+    assert any(t["id"] == task_id for t in tasks)
     
     # Complete Task
     res = client.put(f"/api/tasks/{task_id}", headers={"Authorization": f"Bearer {admin_token}"}, json={"status": "Completed"})
@@ -57,7 +58,8 @@ def test_task_crud_and_overdue(admin_token):
     
     # Overdue should no longer contain it
     res = client.get("/api/tasks/?overdue=true", headers={"Authorization": f"Bearer {admin_token}"})
-    assert not any(t["id"] == task_id for t in res.json())
+    tasks = res.json().get("items", res.json())
+    assert not any(t["id"] == task_id for t in tasks)
 
 def test_meeting_scheduling_conflict(admin_token):
     today = datetime.now().strftime("%Y-%m-%d")

@@ -70,7 +70,7 @@ def test_unauthenticated_request_fails():
 
 def test_invalid_bearer_token_fails():
     res = client.get("/api/dashboard/summary", headers={"Authorization": "Bearer invalid_garbage_token"})
-    assert res.status_code == 403
+    assert res.status_code == 401
 
 def test_normal_user_forbidden_from_admin_roles(normal_user_token):
     res = client.get("/api/roles/", headers={"Authorization": f"Bearer {normal_user_token}"})
@@ -180,7 +180,8 @@ def test_full_lead_to_customer_contact_workflow(admin_token):
     # 2. Search Lead
     search_res = client.get(f"/api/leads/?search={unique_company}", headers={"Authorization": f"Bearer {admin_token}"})
     assert search_res.status_code == 200
-    assert any(l["id"] == lead_id for l in search_res.json())
+    search_items = search_res.json().get("items", search_res.json())
+    assert any(l["id"] == lead_id for l in search_items)
     
     # 3. Qualify Lead -> Creates Opportunity
     qual_res = client.post(
@@ -198,7 +199,7 @@ def test_full_lead_to_customer_contact_workflow(admin_token):
     opp_id = opp.id
     db.close()
     
-    # 5. Opportunity Stage Transitions -> Won -> Automatically Creates Customer
+    # 5. Opportunity Stage Transitions: Proposal -> Negotiation -> Won -> Automatically Creates Customer
     # Valid transition to Proposal
     stage_res1 = client.post(
         f"/api/opportunities/{opp_id}/stage",
@@ -208,6 +209,15 @@ def test_full_lead_to_customer_contact_workflow(admin_token):
     assert stage_res1.status_code == 200
     assert stage_res1.json()["stage"] == "Proposal"
     
+    # Valid transition to Negotiation
+    stage_res_neg = client.post(
+        f"/api/opportunities/{opp_id}/stage",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"stage": "Negotiation"}
+    )
+    assert stage_res_neg.status_code == 200
+    assert stage_res_neg.json()["stage"] == "Negotiation"
+
     # Valid transition to Won
     stage_res2 = client.post(
         f"/api/opportunities/{opp_id}/stage",
@@ -220,14 +230,20 @@ def test_full_lead_to_customer_contact_workflow(admin_token):
     # Verify Customer was created with unique company name
     cust_res = client.get(f"/api/customers/?search={unique_company}", headers={"Authorization": f"Bearer {admin_token}"})
     assert cust_res.status_code == 200
-    assert len(cust_res.json()) >= 1
-    customer_id = cust_res.json()[0]["id"]
+    cust_items = cust_res.json().get("items", cust_res.json())
+    assert len(cust_items) >= 1
+    customer_id = cust_items[0]["id"]
     
-    # 6. Create Contact under this new Customer
+    # Verify lead contact was automatically copied to Contacts on Won
+    init_contacts_res = client.get(f"/api/contacts/?customer_id={customer_id}", headers={"Authorization": f"Bearer {admin_token}"})
+    init_contacts = init_contacts_res.json().get("items", init_contacts_res.json())
+    assert any(c["name"] == "Alice Wonder" for c in init_contacts)
+
+    # 6. Create additional Contact under this new Customer
     contact_res = client.post(
         "/api/contacts/",
         headers={"Authorization": f"Bearer {admin_token}"},
-        json={"name": "Alice Wonder", "email": "alice@wonder.com", "customer_id": customer_id, "designation": "CTO"}
+        json={"name": "Bob Wonder", "email": "bob@wonder.com", "customer_id": customer_id, "designation": "CTO"}
     )
     assert contact_res.status_code == 200
     contact_id = contact_res.json()["id"]
@@ -247,7 +263,8 @@ def test_full_lead_to_customer_contact_workflow(admin_token):
     
     # Verify Contact is gone
     contact_verify = client.get(f"/api/contacts/?customer_id={customer_id}", headers={"Authorization": f"Bearer {admin_token}"})
-    assert not any(c["id"] == contact_id for c in contact_verify.json())
+    verify_items = contact_verify.json().get("items", contact_verify.json())
+    assert not any(c["id"] == contact_id for c in verify_items)
 
 # --- 5. TASKS, MEETINGS & OVERDUE FILTERING ---
 
@@ -269,7 +286,8 @@ def test_tasks_crud_and_overdue_filter(admin_token):
     # Filter overdue tasks
     overdue_res = client.get("/api/tasks/?overdue=true", headers={"Authorization": f"Bearer {admin_token}"})
     assert overdue_res.status_code == 200
-    assert any(t["id"] == task_id for t in overdue_res.json())
+    overdue_items = overdue_res.json().get("items", overdue_res.json())
+    assert any(t["id"] == task_id for t in overdue_items)
     
     # Update task to Completed
     complete_res = client.put(

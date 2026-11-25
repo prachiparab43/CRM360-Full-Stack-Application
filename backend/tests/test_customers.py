@@ -72,7 +72,8 @@ def test_contact_crud(admin_token):
     # Read
     res2 = client.get(f"/api/contacts/?customer_id={customer_id}", headers={"Authorization": f"Bearer {admin_token}"})
     assert res2.status_code == 200
-    assert any(c["name"] == "Tony Stark" for c in res2.json())
+    contacts = res2.json().get("items", res2.json())
+    assert any(c["name"] == "Tony Stark" for c in contacts)
     
     # Update
     res3 = client.put(f"/api/contacts/{contact_id}", headers={"Authorization": f"Bearer {admin_token}"}, json={"designation": "CEO"})

@@ -29,14 +29,25 @@ def setup_test_db():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     
-    from app.models.domain import Role, Employee
+    from app.models.domain import Role, Employee, RolePermission
     from app.core.security import get_password_hash
+    from app.core.permissions import get_all_catalog_permissions
     db = TestingSessionLocal()
     
-    admin_role = Role(name="System Administrator", description="Full Access", status="Active")
+    admin_role = Role(name="System Administrator", description="Full Access", status="Active", is_system=True)
     db.add(admin_role)
     db.commit()
     db.refresh(admin_role)
+    
+    # Assign all catalog permissions to seeded test admin role
+    for cp in get_all_catalog_permissions():
+        db.add(RolePermission(
+            role_id=admin_role.id,
+            module=cp["module"],
+            action=cp["action"],
+            data_scope=cp["data_scope"]
+        ))
+    db.commit()
     
     admin = Employee(
         name="System Admin", 
