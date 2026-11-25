@@ -103,5 +103,85 @@ def test_unauthorized_access():
     res = client.get("/api/leads/")
     assert res.status_code == 401 # No token
 
-    # Note: RBAC 403 Forbidden is already covered generically in test_rbac.py
+def test_lead_conversion_success_and_traceability(admin_token):
+    # 1. Create a lead
+    res = client.post(
+        "/api/leads/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "name": "Conversion Test Lead",
+            "company": "Acme Ventures",
+            "contact_name": "Alice Smith",
+            "email": "alice@acmeventures.com",
+            "phone": "+1 555-0199",
+            "lead_source": "Conference",
+            "requirement": "Enterprise CRM deployment"
+        }
+    )
+    assert res.status_code == 200
+    lead_id = res.json()["id"]
+
+    # 2. Convert to Opportunity
+    convert_res = client.post(
+        f"/api/leads/{lead_id}/convert",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "name": "Acme Ventures - Enterprise Rollout",
+            "expected_value": 75000.0,
+            "probability": 25.0,
+            "stage": "Opportunity",
+            "notes": "Qualified via initial discovery call"
+        }
+    )
+    assert convert_res.status_code == 200
+    lead_data = convert_res.json()
+    assert lead_data["status"] == "Qualified"
+    assert lead_data["opportunity_id"] is not None
+    assert lead_data["opportunity_name"] == "Acme Ventures - Enterprise Rollout"
+    opp_id = lead_data["opportunity_id"]
+
+    # 3. Verify Opportunity traceability
+    opp_res = client.get(
+        f"/api/opportunities/{opp_id}",
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    assert opp_res.status_code == 200
+    opp_data = opp_res.json()
+    assert opp_data["lead_id"] == lead_id
+    assert opp_data["lead_name"] == "Conversion Test Lead"
+    assert opp_data["lead_company"] == "Acme Ventures"
+    assert opp_data["lead_source"] == "Conference"
+    assert opp_data["expected_value"] == 75000.0
+
+    # 4. Duplicate conversion attempt must fail
+    dup_res = client.post(
+        f"/api/leads/{lead_id}/convert",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"name": "Duplicate Deal"}
+    )
+    assert dup_res.status_code == 400
+    assert "already been converted" in dup_res.json()["detail"]
+
+def test_lead_conversion_disqualified_fails(admin_token):
+    res = client.post(
+        "/api/leads/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"name": "Disqualified Lead", "company": "NoGo Corp"}
+    )
+    lead_id = res.json()["id"]
+    client.post(
+        f"/api/leads/{lead_id}/disqualify",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"reason": "Not a fit"}
+    )
+
+    # Conversion should fail
+    fail_res = client.post(
+        f"/api/leads/{lead_id}/convert",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"name": "Invalid Deal"}
+    )
+    assert fail_res.status_code == 400
+    assert "Cannot convert a disqualified lead" in fail_res.json()["detail"]
+
 

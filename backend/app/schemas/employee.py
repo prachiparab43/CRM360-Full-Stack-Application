@@ -6,19 +6,23 @@ from typing import Any
 class Token(BaseModel):
     access_token: str
     token_type: str
+    status: Optional[str] = "Active"
+    user: Optional[dict] = None
 
 class TokenPayload(BaseModel):
     sub: Optional[int] = None
 
-class GoogleAuthRequest(BaseModel):
-    id_token: str
+class RegisterRequest(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    confirm_password: Optional[str] = None
+    phone: Optional[str] = None
 
-class GoogleAuthResponse(BaseModel):
-    access_token: Optional[str] = None
-    token_type: Optional[str] = "bearer"
-    status: str # "Active" or "Pending_Approval"
-    message: Optional[str] = None
-    user: Optional[dict] = None
+class RegisterResponse(BaseModel):
+    message: str
+    status: str
+    user: dict
 
 class EmployeeBase(BaseModel):
     name: str
@@ -34,6 +38,11 @@ class EmployeeBase(BaseModel):
 
 class EmployeeCreate(EmployeeBase):
     password: str
+    confirm_password: Optional[str] = None
+
+class PasswordResetRequest(BaseModel):
+    password: str
+    confirm_password: Optional[str] = None
 
 class EmployeeUpdate(BaseModel):
     name: Optional[str] = None
@@ -49,6 +58,8 @@ class EmployeeUpdate(BaseModel):
 
 class EmployeeResponse(EmployeeBase):
     id: int
+    role_name: Optional[str] = None
+    company_name: Optional[str] = None
     
     class Config:
         from_attributes = True

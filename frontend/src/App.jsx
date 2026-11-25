@@ -2,9 +2,9 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import PermissionGate from './components/PermissionGate';
 import Layout from './components/Layout';
 import Landing from './pages/Landing';
-import Login from './pages/Login';
 import PendingApproval from './pages/PendingApproval';
 
 // Lazy-loaded protected CRM modules
@@ -47,23 +47,24 @@ export default function App() {
         <Routes>
           {/* Public & Authentication Routes (Loaded instantly) */}
           <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
+          <Route path="/login" element={<Navigate to="/?auth=signin" replace />} />
+          <Route path="/register" element={<Navigate to="/?auth=register" replace />} />
           <Route path="/pending-approval" element={<PendingApproval />} />
 
           {/* Protected Application Routes (Lazy-loaded with Suspense) */}
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
               <Route path="/dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
-              <Route path="/leads" element={<Suspense fallback={<PageLoader />}><Leads /></Suspense>} />
-              <Route path="/opportunities" element={<Suspense fallback={<PageLoader />}><Opportunities /></Suspense>} />
-              <Route path="/customers" element={<Suspense fallback={<PageLoader />}><Customers /></Suspense>} />
-              <Route path="/contacts" element={<Suspense fallback={<PageLoader />}><Contacts /></Suspense>} />
-              <Route path="/engagements" element={<Suspense fallback={<PageLoader />}><Engagements /></Suspense>} />
-              <Route path="/tracking" element={<Suspense fallback={<PageLoader />}><Tracking /></Suspense>} />
-              <Route path="/reports" element={<Suspense fallback={<PageLoader />}><Reports /></Suspense>} />
-              <Route path="/employees" element={<Suspense fallback={<PageLoader />}><Employees /></Suspense>} />
-              <Route path="/companies" element={<Suspense fallback={<PageLoader />}><Companies /></Suspense>} />
-              <Route path="/roles" element={<Suspense fallback={<PageLoader />}><Roles /></Suspense>} />
+              <Route path="/leads" element={<Suspense fallback={<PageLoader />}><PermissionGate module="Lead"><Leads /></PermissionGate></Suspense>} />
+              <Route path="/opportunities" element={<Suspense fallback={<PageLoader />}><PermissionGate module="Opportunity"><Opportunities /></PermissionGate></Suspense>} />
+              <Route path="/customers" element={<Suspense fallback={<PageLoader />}><PermissionGate module="Customer"><Customers /></PermissionGate></Suspense>} />
+              <Route path="/contacts" element={<Suspense fallback={<PageLoader />}><PermissionGate module="Contact"><Contacts /></PermissionGate></Suspense>} />
+              <Route path="/engagements" element={<Suspense fallback={<PageLoader />}><PermissionGate module="Task" alternatePermissions={[{ module: 'Meeting' }, { module: 'Activity' }]}><Engagements /></PermissionGate></Suspense>} />
+              <Route path="/tracking" element={<Suspense fallback={<PageLoader />}><PermissionGate module="Geo"><Tracking /></PermissionGate></Suspense>} />
+              <Route path="/reports" element={<Suspense fallback={<PageLoader />}><PermissionGate module="Report"><Reports /></PermissionGate></Suspense>} />
+              <Route path="/employees" element={<Suspense fallback={<PageLoader />}><PermissionGate module="Employee"><Employees /></PermissionGate></Suspense>} />
+              <Route path="/companies" element={<Suspense fallback={<PageLoader />}><PermissionGate module="Company"><Companies /></PermissionGate></Suspense>} />
+              <Route path="/roles" element={<Suspense fallback={<PageLoader />}><PermissionGate module="Role"><Roles /></PermissionGate></Suspense>} />
               <Route path="/settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Route>

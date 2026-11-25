@@ -3,12 +3,14 @@ import { useAuth } from '../context/AuthContext';
 import { Clock, ShieldAlert, LogOut, ArrowLeft, Mail, Building2 } from 'lucide-react';
 
 export default function PendingApproval() {
-  const { user, logout } = useAuth();
+  const { user, pendingUser, logout } = useAuth();
   const navigate = useNavigate();
+
+  const displayUser = pendingUser || user;
 
   const handleLogout = () => {
     logout();
-    navigate('/');
+    navigate('/?auth=signin');
   };
 
   return (
@@ -35,7 +37,7 @@ export default function PendingApproval() {
             Welcome to CRM360
           </h1>
           <p className="text-slate-600 text-sm mt-2 max-w-sm">
-            Your identity has been authenticated, but your enterprise workspace is not yet active.
+            Your account has been created successfully, but your enterprise workspace is not yet active.
           </p>
         </div>
 
@@ -43,14 +45,14 @@ export default function PendingApproval() {
         <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200/70 space-y-3 mb-6 text-sm">
           <div className="flex items-center justify-between pb-3 border-b border-slate-200">
             <span className="text-slate-500 text-xs font-medium">Account Name</span>
-            <span className="text-slate-900 font-semibold">{user?.name || 'New User'}</span>
+            <span className="text-slate-900 font-semibold">{displayUser?.name || 'New Member'}</span>
           </div>
           <div className="flex items-center justify-between pb-3 border-b border-slate-200">
             <span className="text-slate-500 text-xs font-medium flex items-center gap-1.5">
               <Mail size={14} className="text-slate-400" />
-              Authenticated Email
+              Registered Email
             </span>
-            <span className="text-slate-900 font-mono text-xs">{user?.email || 'N/A'}</span>
+            <span className="text-slate-900 font-mono text-xs">{displayUser?.email || 'N/A'}</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-slate-500 text-xs font-medium flex items-center gap-1.5">

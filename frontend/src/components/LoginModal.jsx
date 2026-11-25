@@ -1,32 +1,59 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, AlertCircle, X, Check, ShieldCheck, UserPlus, LogIn, ArrowRight } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { 
+  Mail, 
+  Lock, 
+  Eye, 
+  EyeOff, 
+  AlertCircle, 
+  X, 
+  Check, 
+  ShieldCheck, 
+  UserPlus, 
+  LogIn, 
+  ArrowRight,
+  User,
+  Phone,
+  Clock
+} from 'lucide-react';
 
 export default function LoginModal({ isOpen, onClose, initialMode = 'signin' }) {
-  const [mode, setMode] = useState(initialMode); // 'signin' or 'getstarted'
+  // 'signin' or 'getstarted'
+  const [mode, setMode] = useState(initialMode === 'getstarted' ? 'register' : 'signin');
+
+  // Sign In state
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [capsLockOn, setCapsLockOn] = useState(false);
+
+  // Register state
+  const [regName, setRegName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regConfirmPassword, setRegConfirmPassword] = useState('');
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
 
   // Validation & status states
+  const [capsLockOn, setCapsLockOn] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [regErrors, setRegErrors] = useState({});
   const [authError, setAuthError] = useState('');
+  const [isPendingError, setIsPendingError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
 
-  const { login, googleAuth } = useAuth();
+  const { login, register, setPending } = useAuth();
   const navigate = useNavigate();
   const emailInputRef = useRef(null);
   const modalRef = useRef(null);
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
   // Sync mode with prop
   useEffect(() => {
-    setMode(initialMode);
+    setMode(initialMode === 'getstarted' ? 'register' : 'signin');
   }, [initialMode]);
 
   // Reset form state when modal opens
@@ -34,20 +61,27 @@ export default function LoginModal({ isOpen, onClose, initialMode = 'signin' }) 
     if (isOpen) {
       setUsername('');
       setPassword('');
+      setRegName('');
+      setRegEmail('');
+      setRegPhone('');
+      setRegPassword('');
+      setRegConfirmPassword('');
       setEmailError('');
       setPasswordError('');
+      setRegErrors({});
       setAuthError('');
+      setIsPendingError(false);
       setLoading(false);
       setIsSuccess(false);
       setShowPassword(false);
+      setShowRegPassword(false);
+      setShowRegConfirmPassword(false);
       setCapsLockOn(false);
 
-      // Focus email input after opening
       const timer = setTimeout(() => {
         emailInputRef.current?.focus();
       }, 100);
 
-      // Prevent background scrolling while modal is open
       document.body.style.overflow = 'hidden';
 
       return () => {
@@ -75,27 +109,14 @@ export default function LoginModal({ isOpen, onClose, initialMode = 'signin' }) 
 
   // Validate email format
   const validateEmail = (val) => {
-    if (!val.trim()) {
-      setEmailError('Email address is required.');
-      return false;
+    if (!val || !val.trim()) {
+      return 'Email address is required.';
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(val.trim())) {
-      setEmailError('Please enter a valid email address.');
-      return false;
+      return 'Please enter a valid work email address.';
     }
-    setEmailError('');
-    return true;
-  };
-
-  // Validate password
-  const validatePassword = (val) => {
-    if (!val) {
-      setPasswordError('Password is required.');
-      return false;
-    }
-    setPasswordError('');
-    return true;
+    return '';
   };
 
   // Caps lock detection
@@ -105,83 +126,103 @@ export default function LoginModal({ isOpen, onClose, initialMode = 'signin' }) 
     }
   };
 
-  const handleSubmit = async (e) => {
+  // Switch tab
+  const switchTab = (newMode) => {
+    setMode(newMode);
+    setAuthError('');
+    setIsPendingError(false);
+    setEmailError('');
+    setPasswordError('');
+    setRegErrors({});
+  };
+
+  // Sign In handler
+  const handleSignIn = async (e) => {
     e.preventDefault();
     setAuthError('');
+    setIsPendingError(false);
 
-    const isEmailValid = validateEmail(username);
-    const isPasswordValid = validatePassword(password);
+    const emailErr = validateEmail(username);
+    const passErr = !password ? 'Password is required.' : '';
 
-    if (!isEmailValid || !isPasswordValid) {
-      return;
-    }
+    setEmailError(emailErr);
+    setPasswordError(passErr);
+
+    if (emailErr || passErr) return;
 
     setLoading(true);
     try {
-      await login(username, password);
+      const loggedUser = await login(username, password);
       setIsSuccess(true);
       setTimeout(() => {
         onClose();
-        navigate('/dashboard');
-      }, 400);
+        if (loggedUser && (loggedUser.status === 'Pending_Approval' || loggedUser.status === 'Pending')) {
+          navigate('/pending-approval');
+        } else {
+          navigate('/dashboard');
+        }
+      }, 300);
     } catch (err) {
-      setAuthError(err.response?.data?.detail || 'Incorrect email or password. Please try again.');
+      const detail = err.response?.data?.detail || 'Incorrect email or password. Please try again.';
+      setAuthError(detail);
+      if (err.response?.status === 403 && (detail.toLowerCase().includes('pending') || detail.toLowerCase().includes('approval'))) {
+        setIsPendingError(true);
+        setPending({ email: username.trim(), name: 'Member' });
+      }
       setLoading(false);
     }
   };
 
-  const handleGoogleSignIn = () => {
+  // Register handler
+  const handleRegister = async (e) => {
+    e.preventDefault();
     setAuthError('');
-    if (!googleClientId) {
-      setAuthError('Google Client ID is not configured in frontend/.env (VITE_GOOGLE_CLIENT_ID).');
-      return;
+    setIsPendingError(false);
+    const errors = {};
+
+    if (!regName.trim()) {
+      errors.name = 'Full name is required.';
     }
 
-    if (!window.google?.accounts?.id) {
-      setAuthError('Google Identity Services SDK is not loaded. Check your internet connection.');
-      return;
+    const emailErr = validateEmail(regEmail);
+    if (emailErr) {
+      errors.email = emailErr;
     }
 
+    if (!regPassword) {
+      errors.password = 'Password is required.';
+    } else if (regPassword.length < 8) {
+      errors.password = 'Password must be at least 8 characters long.';
+    } else if (!/[a-zA-Z]/.test(regPassword) || !/[0-9]/.test(regPassword)) {
+      errors.password = 'Password must contain both letters and numbers.';
+    }
+
+    if (!regConfirmPassword) {
+      errors.confirmPassword = 'Please confirm your password.';
+    } else if (regPassword !== regConfirmPassword) {
+      errors.confirmPassword = 'Passwords do not match.';
+    }
+
+    setRegErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    setLoading(true);
     try {
-      setGoogleLoading(true);
-      window.google.accounts.id.initialize({
-        client_id: googleClientId,
-        callback: async (response) => {
-          if (!response?.credential) {
-            setGoogleLoading(false);
-            return;
-          }
-          try {
-            const res = await googleAuth(response.credential);
-            setGoogleLoading(false);
-            if (res.status === 'Active') {
-              setIsSuccess(true);
-              setTimeout(() => {
-                onClose();
-                navigate('/dashboard');
-              }, 400);
-            } else if (res.status === 'Pending_Approval') {
-              onClose();
-              navigate('/pending-approval');
-            }
-          } catch (err) {
-            setGoogleLoading(false);
-            setAuthError(err.response?.data?.detail || 'Google authentication failed. Please try again.');
-          }
-        },
-        auto_select: false,
-        cancel_on_tap_outside: true
+      await register({
+        name: regName,
+        email: regEmail,
+        password: regPassword,
+        confirm_password: regConfirmPassword,
+        phone: regPhone
       });
-
-      // Prompt the user to select their account
-      window.google.accounts.id.prompt((notification) => {
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-          setGoogleLoading(false);
-        }
-      });
+      setIsSuccess(true);
+      setTimeout(() => {
+        onClose();
+        navigate('/pending-approval');
+      }, 400);
     } catch (err) {
-      setGoogleLoading(false);
-      setAuthError('Failed to initialize Google authentication prompt.');
+      setAuthError(err.response?.data?.detail || 'Registration failed. Please try again.');
+      setLoading(false);
     }
   };
 
@@ -200,7 +241,7 @@ export default function LoginModal({ isOpen, onClose, initialMode = 'signin' }) 
       {/* Modal Dialog Card */}
       <div 
         ref={modalRef}
-        className="w-full max-w-[440px] bg-white rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden relative animate-fade-up max-h-[92vh] flex flex-col"
+        className="w-full max-w-[460px] bg-white rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden relative animate-fade-up max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Gradient Accent Bar */}
@@ -238,13 +279,10 @@ export default function LoginModal({ isOpen, onClose, initialMode = 'signin' }) 
           </div>
 
           {/* Mode Switcher Tabs */}
-          <div className="flex rounded-xl bg-slate-100 p-1 mb-6 border border-slate-200/80">
+          <div className="flex rounded-xl bg-slate-100 p-1 mb-5 border border-slate-200/80">
             <button
               type="button"
-              onClick={() => {
-                setMode('signin');
-                setAuthError('');
-              }}
+              onClick={() => switchTab('signin')}
               className={`flex-1 py-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 mode === 'signin'
                   ? 'bg-white text-slate-900 shadow-xs'
@@ -256,12 +294,9 @@ export default function LoginModal({ isOpen, onClose, initialMode = 'signin' }) 
             </button>
             <button
               type="button"
-              onClick={() => {
-                setMode('getstarted');
-                setAuthError('');
-              }}
+              onClick={() => switchTab('register')}
               className={`flex-1 py-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                mode === 'getstarted'
+                mode === 'register'
                   ? 'bg-white text-blue-600 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
@@ -272,14 +307,14 @@ export default function LoginModal({ isOpen, onClose, initialMode = 'signin' }) 
           </div>
 
           {/* Title & Prompt */}
-          <div className="mb-5">
+          <div className="mb-4">
             <h2 id="login-modal-title" className="text-2xl font-bold text-slate-900 tracking-tight">
-              {mode === 'signin' ? 'Welcome back' : 'Get Started with CRM360'}
+              {mode === 'signin' ? 'Welcome back' : 'Create an Account'}
             </h2>
-            <p className="text-slate-500 text-xs sm:text-sm mt-1">
+            <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
               {mode === 'signin' 
                 ? 'Sign in to access your enterprise dashboard'
-                : 'Join your organization or start new enterprise onboarding'}
+                : 'Register for company workspace onboarding'}
             </p>
           </div>
 
@@ -287,204 +322,349 @@ export default function LoginModal({ isOpen, onClose, initialMode = 'signin' }) 
           {authError && (
             <div 
               role="alert" 
-              className="bg-red-50 text-red-700 p-3.5 rounded-xl mb-5 text-sm border border-red-200 flex items-start gap-2.5 font-medium animate-shake"
+              className="bg-red-50 text-red-700 p-3.5 rounded-xl mb-4 text-sm border border-red-200 flex flex-col gap-1.5 font-medium animate-shake"
             >
-              <AlertCircle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
-              <span>{authError}</span>
+              <div className="flex items-start gap-2.5">
+                <AlertCircle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
+                <span>{authError}</span>
+              </div>
+              {isPendingError && (
+                <div className="mt-1 pl-7">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      navigate('/pending-approval');
+                    }}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900 underline cursor-pointer"
+                  >
+                    <Clock size={13} />
+                    <span>View Pending Status Details</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Google Button */}
-          <div className="mb-5">
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              disabled={loading || googleLoading}
-              title={googleClientId ? (mode === 'signin' ? 'Sign in with Google' : 'Sign up with Google') : 'Set VITE_GOOGLE_CLIENT_ID in frontend/.env to activate'}
-              className="w-full h-11 sm:h-12 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl font-medium text-sm flex items-center justify-center gap-3 shadow-2xs transition-colors hover:border-slate-400 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed relative"
-            >
-              {/* Official Google SVG emblem */}
-              <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
-                <path
-                  fill="#4285F4"
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                />
-              </svg>
-              <span>
-                {googleLoading 
-                  ? 'Connecting to Google...' 
-                  : (mode === 'signin' ? 'Sign in with Google' : 'Sign up with Google')}
-              </span>
-              {!googleClientId && (
-                <span className="text-[10px] bg-amber-50 text-amber-700 font-semibold px-2 py-0.5 rounded border border-amber-200">
-                  Missing Client ID
-                </span>
-              )}
-            </button>
-            {!googleClientId && (
-              <p className="text-[11px] text-amber-600/90 text-center mt-1.5 font-medium">
-                Set VITE_GOOGLE_CLIENT_ID in frontend/.env to activate Google OAuth.
-              </p>
-            )}
-          </div>
-
-          {/* Divider */}
-          <div className="relative my-5">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-200" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-3 text-slate-400 font-medium tracking-wider">
-                or continue with credentials
-              </span>
-            </div>
-          </div>
-
-          {/* Mode Guidance for Get Started */}
-          {mode === 'getstarted' && (
-            <div className="mb-4 p-3.5 rounded-xl bg-blue-50/80 border border-blue-200/70 text-xs text-blue-900 space-y-1.5">
-              <div className="font-semibold flex items-center gap-1.5 text-blue-800">
-                <ShieldCheck size={16} />
-                <span>Enterprise Access Policy</span>
-              </div>
-              <p className="leading-relaxed text-blue-800/90">
-                CRM360 is an enterprise platform. Existing members can sign in with their assigned company credentials. New Google users will enter pending review until assigned to an authorized company workspace.
-              </p>
-            </div>
-          )}
-
-          {/* Login Form */}
-          <form onSubmit={handleSubmit} noValidate className="space-y-4">
-            
-            {/* Email Field */}
-            <div>
-              <label htmlFor="modal-email" className="block text-xs sm:text-sm font-medium text-slate-700 mb-1.5">
-                Work Email Address
-              </label>
-              <div className="relative">
-                <Mail size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                <input 
-                  ref={emailInputRef}
-                  id="modal-email"
-                  name="email"
-                  type="email" 
-                  autoComplete="email"
-                  value={username} 
-                  onChange={(e) => {
-                    setUsername(e.target.value);
-                    if (emailError) validateEmail(e.target.value);
-                  }}
-                  onBlur={() => validateEmail(username)}
-                  className={`w-full h-11 sm:h-12 pl-11 pr-4 bg-white border ${
-                    emailError ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : 'border-slate-300 hover:border-slate-400 focus:border-blue-600 focus:ring-blue-600/15'
-                  } rounded-xl text-slate-900 placeholder-slate-400 focus:ring-[3px] focus:outline-none transition-all duration-150 text-sm`}
-                  placeholder="name@company.com"
-                  required 
-                />
-              </div>
-              {emailError && (
-                <p className="mt-1 text-xs text-red-600 font-medium flex items-center gap-1">
-                  <span>{emailError}</span>
-                </p>
-              )}
-            </div>
-
-            {/* Password Field */}
-            <div>
-              <label htmlFor="modal-password" className="block text-xs sm:text-sm font-medium text-slate-700 mb-1.5">
-                Password
-              </label>
+          {/* ======================================================== */}
+          {/* TAB 1: SIGN IN FORM                                      */}
+          {/* ======================================================== */}
+          {mode === 'signin' ? (
+            <form onSubmit={handleSignIn} noValidate className="space-y-4">
               
-              <div className="relative">
-                <Lock size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                <input 
-                  id="modal-password"
-                  name="password"
-                  type={showPassword ? "text" : "password"} 
-                  autoComplete="current-password"
-                  value={password} 
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    if (passwordError) validatePassword(e.target.value);
-                  }}
-                  onBlur={() => validatePassword(password)}
-                  onKeyDown={handleKeyModifier}
-                  onKeyUp={handleKeyModifier}
-                  className={`w-full h-11 sm:h-12 pl-11 pr-11 bg-white border ${
-                    passwordError ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : 'border-slate-300 hover:border-slate-400 focus:border-blue-600 focus:ring-blue-600/15'
-                  } rounded-xl text-slate-900 placeholder-slate-400 focus:ring-[3px] focus:outline-none transition-all duration-150 text-sm`}
-                  placeholder="••••••••"
-                  required 
-                />
+              {/* Email Field */}
+              <div>
+                <label htmlFor="modal-email" className="block text-xs sm:text-sm font-medium text-slate-700 mb-1.5">
+                  Work Email Address
+                </label>
+                <div className="relative">
+                  <Mail size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input 
+                    ref={emailInputRef}
+                    id="modal-email"
+                    name="email"
+                    type="email" 
+                    autoComplete="email"
+                    value={username} 
+                    onChange={(e) => {
+                      setUsername(e.target.value);
+                      if (emailError) setEmailError(validateEmail(e.target.value));
+                    }}
+                    onBlur={() => setEmailError(validateEmail(username))}
+                    className={`w-full h-11 sm:h-12 pl-11 pr-4 bg-white border ${
+                      emailError ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : 'border-slate-300 hover:border-slate-400 focus:border-blue-600 focus:ring-blue-600/15'
+                    } rounded-xl text-slate-900 placeholder-slate-400 focus:ring-[3px] focus:outline-none transition-all duration-150 text-sm`}
+                    placeholder="name@company.com"
+                    required 
+                  />
+                </div>
+                {emailError && (
+                  <p className="mt-1 text-xs text-red-600 font-medium">
+                    {emailError}
+                  </p>
+                )}
+              </div>
+
+              {/* Password Field */}
+              <div>
+                <label htmlFor="modal-password" className="block text-xs sm:text-sm font-medium text-slate-700 mb-1.5">
+                  Password
+                </label>
+                
+                <div className="relative">
+                  <Lock size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input 
+                    id="modal-password"
+                    name="password"
+                    type={showPassword ? "text" : "password"} 
+                    autoComplete="current-password"
+                    value={password} 
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (passwordError) setPasswordError(e.target.value ? '' : 'Password is required.');
+                    }}
+                    onKeyDown={handleKeyModifier}
+                    onKeyUp={handleKeyModifier}
+                    className={`w-full h-11 sm:h-12 pl-11 pr-11 bg-white border ${
+                      passwordError ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : 'border-slate-300 hover:border-slate-400 focus:border-blue-600 focus:ring-blue-600/15'
+                    } rounded-xl text-slate-900 placeholder-slate-400 focus:ring-[3px] focus:outline-none transition-all duration-150 text-sm`}
+                    placeholder="••••••••"
+                    required 
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-colors cursor-pointer"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+
+                {capsLockOn && (
+                  <p className="mt-1 text-xs text-amber-600 font-medium">
+                    Caps Lock is ON
+                  </p>
+                )}
+
+                {passwordError && (
+                  <p className="mt-1 text-xs text-red-600 font-medium">
+                    {passwordError}
+                  </p>
+                )}
+              </div>
+
+              {/* Submit Button */}
+              <div className="pt-2">
                 <button 
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-colors"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  title={showPassword ? "Hide password" : "Show password"}
+                  type="submit" 
+                  disabled={loading || isSuccess}
+                  className={`w-full h-11 sm:h-12 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium rounded-xl shadow-sm transition-all duration-150 flex items-center justify-center text-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-600/25 cursor-pointer ${
+                    loading ? 'opacity-80 cursor-wait' : ''
+                  } ${isSuccess ? 'bg-emerald-600 hover:bg-emerald-600' : ''}`}
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {isSuccess ? (
+                    <span className="flex items-center gap-2">
+                      <Check size={18} />
+                      <span>Authenticated! Redirecting...</span>
+                    </span>
+                  ) : loading ? (
+                    <span className="flex items-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Signing In...</span>
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <span>Sign In to Workspace</span>
+                      <ArrowRight size={16} />
+                    </span>
+                  )}
                 </button>
               </div>
 
-              {capsLockOn && (
-                <p className="mt-1 text-xs text-amber-600 font-medium flex items-center gap-1">
-                  <span>Caps Lock is ON</span>
-                </p>
-              )}
+              <p className="text-center text-xs text-slate-500 pt-2">
+                Need an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => switchTab('register')}
+                  className="font-semibold text-blue-600 hover:text-blue-700 underline cursor-pointer"
+                >
+                  Create one now
+                </button>
+              </p>
 
-              {passwordError && (
-                <p className="mt-1 text-xs text-red-600 font-medium">
-                  <span>{passwordError}</span>
+            </form>
+          ) : (
+            /* ======================================================== */
+            /* TAB 2: REGISTRATION FORM                                 */
+            /* ======================================================== */
+            <form onSubmit={handleRegister} noValidate className="space-y-3">
+              
+              {/* Enterprise Access Guidance */}
+              <div className="p-3 rounded-xl bg-blue-50/80 border border-blue-200/70 text-xs text-blue-900 space-y-1">
+                <div className="font-semibold flex items-center gap-1.5 text-blue-800">
+                  <ShieldCheck size={14} />
+                  <span>Enterprise Workspace Onboarding</span>
+                </div>
+                <p className="leading-relaxed text-blue-800/90 text-[11px]">
+                  Accounts enter pending approval until an administrator assigns company and role permissions.
                 </p>
-              )}
-            </div>
+              </div>
 
-            {/* Submit Button */}
-            <div className="pt-2">
-              <button 
-                type="submit" 
-                disabled={loading || isSuccess}
-                className={`w-full h-11 sm:h-12 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium rounded-xl shadow-sm transition-all duration-150 flex items-center justify-center text-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-600/25 cursor-pointer ${
-                  loading ? 'opacity-80 cursor-wait' : ''
-                } ${isSuccess ? 'bg-emerald-600 hover:bg-emerald-600' : ''}`}
-              >
-                {isSuccess ? (
-                  <span className="flex items-center gap-2">
-                    <Check size={18} />
-                    <span>Authenticated! Redirecting...</span>
-                  </span>
-                ) : loading ? (
-                  <span className="flex items-center gap-2">
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Signing In...</span>
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <span>{mode === 'signin' ? 'Sign In to Workspace' : 'Sign In with Existing Account'}</span>
-                    <ArrowRight size={16} />
-                  </span>
+              {/* Full Name */}
+              <div>
+                <label htmlFor="modal-reg-name" className="block text-xs font-medium text-slate-700 mb-1">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    id="modal-reg-name"
+                    type="text"
+                    value={regName}
+                    onChange={(e) => setRegName(e.target.value)}
+                    className={`w-full h-10 pl-9 pr-3 bg-white border ${
+                      regErrors.name ? 'border-red-500' : 'border-slate-300 focus:border-blue-600'
+                    } rounded-xl text-slate-900 placeholder-slate-400 text-xs sm:text-sm focus:outline-none`}
+                    placeholder="Jane Doe"
+                    required
+                  />
+                </div>
+                {regErrors.name && (
+                  <p className="mt-1 text-[11px] text-red-600 font-medium">{regErrors.name}</p>
                 )}
-              </button>
-            </div>
+              </div>
 
-            {/* Security note */}
-            <p className="text-center text-[11px] text-slate-400 pt-1">
-              Secured with JWT authentication and Role-Based Access Control (RBAC).
-            </p>
-          </form>
+              {/* Work Email */}
+              <div>
+                <label htmlFor="modal-reg-email" className="block text-xs font-medium text-slate-700 mb-1">
+                  Work Email Address
+                </label>
+                <div className="relative">
+                  <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    id="modal-reg-email"
+                    type="email"
+                    value={regEmail}
+                    onChange={(e) => setRegEmail(e.target.value)}
+                    className={`w-full h-10 pl-9 pr-3 bg-white border ${
+                      regErrors.email ? 'border-red-500' : 'border-slate-300 focus:border-blue-600'
+                    } rounded-xl text-slate-900 placeholder-slate-400 text-xs sm:text-sm focus:outline-none`}
+                    placeholder="name@company.com"
+                    required
+                  />
+                </div>
+                {regErrors.email && (
+                  <p className="mt-1 text-[11px] text-red-600 font-medium">{regErrors.email}</p>
+                )}
+              </div>
+
+              {/* Phone (Optional) */}
+              <div>
+                <label htmlFor="modal-reg-phone" className="block text-xs font-medium text-slate-700 mb-1">
+                  Phone Number <span className="text-slate-400 font-normal">(optional)</span>
+                </label>
+                <div className="relative">
+                  <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    id="modal-reg-phone"
+                    type="tel"
+                    value={regPhone}
+                    onChange={(e) => setRegPhone(e.target.value)}
+                    className="w-full h-10 pl-9 pr-3 bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-slate-900 placeholder-slate-400 text-xs sm:text-sm focus:outline-none"
+                    placeholder="+1 (555) 000-0000"
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <label htmlFor="modal-reg-password" className="block text-xs font-medium text-slate-700 mb-1">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    id="modal-reg-password"
+                    type={showRegPassword ? "text" : "password"}
+                    value={regPassword}
+                    onChange={(e) => setRegPassword(e.target.value)}
+                    onKeyDown={handleKeyModifier}
+                    onKeyUp={handleKeyModifier}
+                    className={`w-full h-10 pl-9 pr-9 bg-white border ${
+                      regErrors.password ? 'border-red-500' : 'border-slate-300 focus:border-blue-600'
+                    } rounded-xl text-slate-900 placeholder-slate-400 text-xs sm:text-sm focus:outline-none`}
+                    placeholder="Min. 8 characters (letters & numbers)"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowRegPassword(!showRegPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showRegPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+                {regErrors.password && (
+                  <p className="mt-1 text-[11px] text-red-600 font-medium">{regErrors.password}</p>
+                )}
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label htmlFor="modal-reg-confirm" className="block text-xs font-medium text-slate-700 mb-1">
+                  Confirm Password
+                </label>
+                <div className="relative">
+                  <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    id="modal-reg-confirm"
+                    type={showRegConfirmPassword ? "text" : "password"}
+                    value={regConfirmPassword}
+                    onChange={(e) => setRegConfirmPassword(e.target.value)}
+                    onKeyDown={handleKeyModifier}
+                    onKeyUp={handleKeyModifier}
+                    className={`w-full h-10 pl-9 pr-9 bg-white border ${
+                      regErrors.confirmPassword ? 'border-red-500' : 'border-slate-300 focus:border-blue-600'
+                    } rounded-xl text-slate-900 placeholder-slate-400 text-xs sm:text-sm focus:outline-none`}
+                    placeholder="Re-enter password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowRegConfirmPassword(!showRegConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showRegConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+                {regErrors.confirmPassword && (
+                  <p className="mt-1 text-[11px] text-red-600 font-medium">{regErrors.confirmPassword}</p>
+                )}
+              </div>
+
+              {capsLockOn && (
+                <p className="text-[11px] text-amber-600 font-medium">Caps Lock is ON</p>
+              )}
+
+              {/* Submit Button */}
+              <div className="pt-1.5">
+                <button
+                  type="submit"
+                  disabled={loading || isSuccess}
+                  className={`w-full h-11 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium rounded-xl shadow-sm transition-all duration-150 flex items-center justify-center text-sm cursor-pointer ${
+                    loading ? 'opacity-80 cursor-wait' : ''
+                  } ${isSuccess ? 'bg-emerald-600 hover:bg-emerald-600' : ''}`}
+                >
+                  {isSuccess ? (
+                    <span className="flex items-center gap-2">
+                      <Check size={18} />
+                      <span>Account Created! Redirecting...</span>
+                    </span>
+                  ) : loading ? (
+                    <span className="flex items-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Creating Account...</span>
+                    </span>
+                  ) : (
+                    'Create Account'
+                  )}
+                </button>
+              </div>
+
+              <p className="text-center text-xs text-slate-500 pt-1">
+                Already registered?{' '}
+                <button
+                  type="button"
+                  onClick={() => switchTab('signin')}
+                  className="font-semibold text-blue-600 hover:text-blue-700 underline cursor-pointer"
+                >
+                  Sign in
+                </button>
+              </p>
+
+            </form>
+          )}
 
         </div>
       </div>

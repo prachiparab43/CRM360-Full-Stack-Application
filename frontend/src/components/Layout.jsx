@@ -30,30 +30,47 @@ export default function Layout() {
     navigate('/login', { replace: true });
   };
 
+  const userPerms = user?.permissions || [];
+  const hasPerm = (module, action = 'View') => {
+    return userPerms.some(
+      p => (p.module === module || (module === 'Geo' && p.module === 'GeoTracking')) &&
+           (p.action === action || (module === 'Geo' && action === 'View' && p.action.startsWith('Geo.')))
+    );
+  };
+
   const navs = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { name: 'Leads', path: '/leads', icon: Users },
-    { name: 'Opportunities', path: '/opportunities', icon: Briefcase },
-    { name: 'Customers', path: '/customers', icon: Building2 },
-    { name: 'Contacts', path: '/contacts', icon: Contact },
-    { name: 'Tasks & Meetings', path: '/engagements', icon: CalendarCheck },
-    { name: 'Geo-Tracking', path: '/tracking', icon: MapPin },
-    { name: 'Reports', path: '/reports', icon: BarChart3 },
   ];
 
-  const canViewEmployees = user?.permissions?.some(p => p.module === 'Employee' && p.action === 'View');
-  if (canViewEmployees) { 
-     navs.push({ name: 'Employees', path: '/employees', icon: UserSquare2 });
+  if (hasPerm('Lead')) {
+    navs.push({ name: 'Leads', path: '/leads', icon: Users });
   }
-
-  const canManageCompanies = user?.permissions?.some(p => p.module === 'Company' && p.action === 'View');
-  if (canManageCompanies) {
-     navs.push({ name: 'Companies', path: '/companies', icon: Building2 });
+  if (hasPerm('Opportunity')) {
+    navs.push({ name: 'Opportunities', path: '/opportunities', icon: Briefcase });
   }
-
-  const canManageRoles = user?.permissions?.some(p => p.module === 'Role' && p.action === 'View');
-  if (canManageRoles) {
-     navs.push({ name: 'Roles', path: '/roles', icon: Shield });
+  if (hasPerm('Customer')) {
+    navs.push({ name: 'Customers', path: '/customers', icon: Building2 });
+  }
+  if (hasPerm('Contact')) {
+    navs.push({ name: 'Contacts', path: '/contacts', icon: Contact });
+  }
+  if (hasPerm('Task') || hasPerm('Meeting') || hasPerm('Activity')) {
+    navs.push({ name: 'Tasks & Meetings', path: '/engagements', icon: CalendarCheck });
+  }
+  if (hasPerm('Geo')) {
+    navs.push({ name: 'Geo-Tracking', path: '/tracking', icon: MapPin });
+  }
+  if (hasPerm('Report')) {
+    navs.push({ name: 'Reports', path: '/reports', icon: BarChart3 });
+  }
+  if (hasPerm('Employee')) {
+    navs.push({ name: 'Employees', path: '/employees', icon: UserSquare2 });
+  }
+  if (hasPerm('Company')) {
+    navs.push({ name: 'Companies', path: '/companies', icon: Building2 });
+  }
+  if (hasPerm('Role')) {
+    navs.push({ name: 'Roles', path: '/roles', icon: Shield });
   }
 
   return (

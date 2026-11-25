@@ -1,30 +1,30 @@
 # CRM360 — Enterprise Customer Relationship Management System
 
-CRM360 is a modern, enterprise-grade, full-stack Customer Relationship Management (CRM) platform built with React 19, FastAPI, and Microsoft SQL Server. It features dual authentication (Email/Password & Google OAuth 2.0 OpenID Connect), Role-Based Access Control (RBAC), multi-tenant company support, lead-to-opportunity pipeline management, geotracking, analytics dashboards, and an enterprise landing page.
+CRM360 is a modern, enterprise-grade, full-stack Customer Relationship Management (CRM) platform built with React 19, FastAPI, and Microsoft SQL Server. It features secure Email/Password authentication and self-registration, enterprise admin approval gating, dynamic Role-Based Access Control (RBAC), multi-tenant company support, lead-to-opportunity pipeline management, geotracking, analytics dashboards, and an enterprise landing page.
 
 ---
 
 ## Tech Stack
 
 - **Frontend:** React 19, Vite (with Rolldown code-splitting & dynamic imports), Tailwind CSS v4, React Router, Recharts, React-Leaflet, Lucide Icons.
-- **Backend:** Python FastAPI, SQLAlchemy, Alembic, Pydantic v2, Google Auth (`google-auth`, `requests`), Pytest.
+- **Backend:** Python FastAPI, SQLAlchemy, Alembic, Pydantic v2, Pytest.
 - **Database:** Microsoft SQL Server (via ODBC Driver 18 for SQL Server).
-- **Security:** JWT Authentication (HMAC-SHA256), Google OpenID Connect ID token verification, Bcrypt password hashing, Granular RBAC (Data Scopes: Own, Team, Company, All).
+- **Security:** JWT Authentication (HMAC-SHA256), Bcrypt password hashing, Granular dynamic RBAC (Data Scopes: Own, Team, Company, All).
 
 ---
 
 ## Key Modules & Features
 
-1. **Enterprise Public Landing Page & Modal Auth:** Modern SaaS presentation with hero section, live feature tours, client testimonials, and unified Sign In / Get Started modal.
-2. **Dual Authentication:**
-   - **Email / Password:** Secure JWT issuance with password hashing.
-   - **Google Sign In (GIS):** Cryptographic RSA signature verification against Google JWKS certs.
-3. **Zero-Trust New User Quarantine:** New Google registrations are placed into `Pending_Approval` status with zero data permissions until an administrator assigns a Company and Role.
-4. **Role-Based Access Control (RBAC):** Permissions enforced per module (`View`, `Create`, `Edit`, `Delete`) and scoped per record (`Own`, `Team`, `Company`, `All`).
+1. **Enterprise Public Landing Page & Modal Auth:** Modern SaaS presentation with hero section, live feature tours, client testimonials, and unified Sign In / Get Started interface.
+2. **Secure Authentication & Public Registration:**
+   - **Email / Password Sign-In:** Secure JWT issuance with Bcrypt password hashing and rate-limiting.
+   - **Self-Service Registration:** Clean registration flow enforcing password complexity policy (minimum 8 characters, letters & digits) and duplicate email prevention.
+3. **Zero-Trust New User Quarantine:** New registrations enter `Pending_Approval` status with zero data permissions until an authorized administrator assigns a Company workspace and Role.
+4. **Role-Based Access Control (RBAC):** Dynamic, database-driven permissions enforced per module (`View`, `Create`, `Edit`, `Delete`, `Assign`, `Export`, `Import`) and scoped per record (`Own`, `Team`, `Company`, `All`).
 5. **Dashboard & Analytics:** Real-time summary metrics, deal conversion rate, pipeline stages, revenue charts, and CSV report export.
 6. **Core CRM Modules:** Leads, Opportunities (stages with stage-locking rules), Customers, Contacts, Tasks & Engagements, Meetings, Geo-Tracking & Customer Visits.
 7. **Organization Administration:** Employees management, Companies, and Custom Roles & Permissions.
-8. **Account Settings:** Self-service profile management, security provider detection, password update, and theme mode toggle (Light, Dark, System Default).
+8. **Account Settings:** Self-service profile management, security settings, password update, and theme mode toggle (Light, Dark, System Default).
 
 ---
 
@@ -34,7 +34,6 @@ CRM360 is a modern, enterprise-grade, full-stack Customer Relationship Managemen
 2. **Node.js 18+** & **npm**
 3. **Microsoft SQL Server** (2019, 2022, or Developer / Express Edition)
 4. **ODBC Driver 18 for SQL Server** installed on Windows.
-5. *(Optional)* **Google Cloud OAuth 2.0 Web Client ID** (for Google Sign In).
 
 ---
 
@@ -158,11 +157,11 @@ Once logged into the application using your bootstrapped administrator credentia
      - `Company`: Access restricted to records within the employee's assigned company.
      - `All`: Unrestricted cross-company access (System Administrator).
 
-### C. Google Sign In & Zero-Trust Quarantine Workflow
-1. If Google OAuth is configured, users can click **Sign in with Google** on the landing page or login screen.
-2. When a new user authenticates with Google for the first time:
-   - The backend cryptographically validates the token with Google JWKS.
-   - The user account is automatically provisioned in a quarantined state: `status = 'Pending_Approval'` with **no Company, Role, or data permissions**.
+### C. User Registration & Zero-Trust Quarantine Workflow
+1. New users click **Get Started** on the landing page, login modal, or `/register`.
+2. When a new user registers:
+   - The backend validates required fields, email format, password complexity (min 8 chars with letters & numbers), and password confirmation.
+   - The user account is provisioned in a quarantined state: `status = 'Pending_Approval'` with **no Company, Role, or data permissions**.
    - The user is redirected to the `/pending-approval` holding screen and cannot access protected CRM data or endpoints.
 3. **Administrator Approval:**
    - The System Administrator logs into CRM360 and navigates to **Employees**.
@@ -193,11 +192,11 @@ cd backend
 .\venv\Scripts\Activate.ps1
 pytest -v
 ```
-**Test Coverage:** 54/54 automated test cases covering:
-- Authentication & JWT issuance
-- Google ID token verification & quarantine gating
-- Inactive user access restrictions
-- RBAC scope enforcement & unauthorized access protection
+**Test Coverage:** Comprehensive automated test suite covering:
+- Authentication, JWT issuance, and rate-limiting
+- New user registration, password policy validation, and quarantine gating
+- Inactive and pending user access restrictions
+- Dynamic RBAC scope enforcement (`Own`, `Team`, `Company`, `All`) & unauthorized access protection
 - Complete Lead-to-Customer conversion workflow
 - Opportunity pipeline stage transitions and lock validation
 - Task, meeting, and geotracking visit lifecycles

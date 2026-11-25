@@ -8,7 +8,7 @@ from app.models.domain import (
     Lead, Opportunity, Customer, Employee, Task, Meeting, CustomerVisit, GeoTracking, Activity
 )
 from app.schemas.dashboard import DashboardSummary, DashboardCharts, ChartDataPoint
-from app.core.scope import apply_scope
+from app.core.scope import apply_scope, get_team_employee_ids
 
 router = APIRouter()
 
@@ -45,7 +45,11 @@ def get_dashboard_summary(
         func.sum(case((Opportunity.stage == "Lost", 1), else_=0)).label("lost_opps"),
         func.sum(Opportunity.expected_value).label("total_expected_revenue"),
         func.sum(case((Opportunity.stage == "Won", Opportunity.expected_value), else_=0)).label("total_won_revenue"),
+        func.sum(case((Opportunity.stage.notin_(["Won", "Lost"]), Opportunity.expected_value), else_=0)).label("pipeline_value"),
     ).first()
+
+    opp_stage_rows = opp_q.with_entities(Opportunity.stage, func.count(Opportunity.id)).group_by(Opportunity.stage).all()
+    opportunities_by_stage = {r[0]: int(r[1]) for r in opp_stage_rows if r[0]}
 
     # 4. Employee conditional aggregation (single query)
     emp_q = apply_scope(db.query(Employee), Employee, auth_info, db)
@@ -72,7 +76,7 @@ def get_dashboard_summary(
         func.sum(case((CustomerVisit.status == "InProgress", 1), else_=0)).label("active_visits"),
     ).first()
 
-    # 7. Geo Summary: checked_in_employees via single subquery
+    # 7. Geo Summary: checked_in_employees via single subquery & location status list
     max_geo_subq = (
         db.query(func.max(GeoTracking.id).label("max_id"))
         .group_by(GeoTracking.employee_id)
@@ -85,6 +89,24 @@ def get_dashboard_summary(
         db
     )
     checked_in_employees = latest_geo_q.filter(GeoTracking.type == "CheckIn").count()
+
+    latest_geos = (
+        latest_geo_q
+        .order_by(GeoTracking.timestamp.desc())
+        .limit(10)
+        .all()
+    )
+    employee_location_status = [
+        {
+            "employee_id": g.employee_id,
+            "employee_name": g.employee.name if g.employee else f"Employee #{g.employee_id}",
+            "type": g.type,
+            "latitude": float(g.latitude) if g.latitude is not None else None,
+            "longitude": float(g.longitude) if g.longitude is not None else None,
+            "timestamp": g.timestamp.isoformat() if g.timestamp else None,
+        }
+        for g in latest_geos
+    ]
 
     # 8. Upcoming meetings (next 5)
     meet_q = apply_scope(db.query(Meeting), Meeting, auth_info, db)
@@ -142,6 +164,8 @@ def get_dashboard_summary(
         lost_opportunities=opp_stats.lost_opps or 0,
         total_expected_revenue=float(opp_stats.total_expected_revenue or 0.0),
         total_won_revenue=float(opp_stats.total_won_revenue or 0.0),
+        pipeline_value=float(opp_stats.pipeline_value or 0.0),
+        opportunities_by_stage=opportunities_by_stage,
 
         total_employees=emp_stats.total or 0,
         active_employees=emp_stats.active_employees or 0,
@@ -157,6 +181,7 @@ def get_dashboard_summary(
         completed_visits=visit_stats.completed_visits or 0,
         active_visits=visit_stats.active_visits or 0,
         checked_in_employees=checked_in_employees,
+        employee_location_status=employee_location_status,
 
         recent_activities=recent_activities,
     )
@@ -169,28 +194,47 @@ def get_dashboard_charts(
     leads_q = apply_scope(db.query(Lead.status, func.count(Lead.id)), Lead, auth_info, db).group_by(Lead.status).all()
     opp_q = apply_scope(db.query(Opportunity.stage, func.sum(Opportunity.expected_value)), Opportunity, auth_info, db).group_by(Opportunity.stage).all()
     
-    perf_query = apply_scope(db.query(Employee.name, func.sum(Opportunity.expected_value)), Opportunity, auth_info, db).filter(Opportunity.stage == "Won")
-    perf_query = perf_query.join(Employee, Opportunity.assigned_employee_id == Employee.id)
+    scope = auth_info.get("scope", "Own")
+    curr_user = auth_info["user"]
+
+    perf_query = db.query(Employee.name, func.sum(Opportunity.expected_value)).join(
+        Opportunity, Opportunity.assigned_employee_id == Employee.id
+    ).filter(Opportunity.stage == "Won")
+
+    if scope == "Own":
+        perf_query = perf_query.filter(Opportunity.assigned_employee_id == curr_user.id)
+    elif scope == "Team":
+        perf_query = perf_query.filter(Opportunity.assigned_employee_id.in_(get_team_employee_ids(db, curr_user.id)))
+    elif scope == "Company":
+        perf_query = perf_query.filter(Employee.company_id == curr_user.company_id)
+
     emp_perf = perf_query.group_by(Employee.name).all()
 
     # Calculate monthly sales for the current year
     current_year = datetime.now().year
-    sales_query = apply_scope(
-        db.query(
-            func.month(Opportunity.expected_close_date).label('month'),
-            func.sum(Opportunity.expected_value).label('total')
-        ), Opportunity, auth_info, db
+    sales_query = db.query(
+        func.month(Opportunity.expected_close_date).label('month'),
+        func.sum(Opportunity.expected_value).label('total')
     ).filter(
         Opportunity.stage == "Won",
         func.year(Opportunity.expected_close_date) == current_year
-    ).group_by(func.month(Opportunity.expected_close_date)).all()
+    )
+
+    if scope == "Own":
+        sales_query = sales_query.filter(Opportunity.assigned_employee_id == curr_user.id)
+    elif scope == "Team":
+        sales_query = sales_query.filter(Opportunity.assigned_employee_id.in_(get_team_employee_ids(db, curr_user.id)))
+    elif scope == "Company":
+        sales_query = sales_query.join(Employee, Opportunity.assigned_employee_id == Employee.id).filter(Employee.company_id == curr_user.company_id)
+
+    sales_data = sales_query.group_by(func.month(Opportunity.expected_close_date)).all()
     
     # Map months to strings
     months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     monthly_sales_data = []
-    sales_dict = {row.month: row.total for row in sales_query if row.month}
+    sales_dict = {row.month: row.total for row in sales_data if row.month}
     for i in range(1, 13):
-        monthly_sales_data.append(ChartDataPoint(label=months[i-1], value=sales_dict.get(i, 0)))
+        monthly_sales_data.append(ChartDataPoint(label=months[i-1], value=float(sales_dict.get(i, 0) or 0)))
 
     pipeline_stages = ["Opportunity", "Proposal", "Negotiation", "Won", "Lost"]
     opp_dict = {k: float(v or 0) for k, v in opp_q if k}
@@ -203,8 +247,8 @@ def get_dashboard_charts(
             opp_distribution.append(ChartDataPoint(label=k, value=v))
 
     return DashboardCharts(
-        lead_distribution=[ChartDataPoint(label=k, value=v) for k, v in leads_q],
+        lead_distribution=[ChartDataPoint(label=k, value=float(v or 0)) for k, v in leads_q if k],
         opportunity_distribution=opp_distribution,
         monthly_sales=monthly_sales_data,
-        employee_performance=[ChartDataPoint(label=k, value=v or 0) for k, v in emp_perf]
+        employee_performance=[ChartDataPoint(label=k, value=float(v or 0)) for k, v in emp_perf if k]
     )

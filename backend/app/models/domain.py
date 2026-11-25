@@ -67,6 +67,14 @@ class Employee(Base):
     role = relationship("Role", back_populates="employees")
     company = relationship("Company", back_populates="employees")
 
+    @property
+    def role_name(self):
+        return self.role.name if self.role else None
+
+    @property
+    def company_name(self):
+        return self.company.name if self.company else None
+
 class Lead(Base):
     __tablename__ = "leads"
     id = Column(Integer, primary_key=True, index=True)
@@ -85,6 +93,22 @@ class Lead(Base):
 
     assigned_employee = relationship("Employee")
     opportunity = relationship("Opportunity", back_populates="lead", uselist=False)
+
+    @property
+    def opportunity_id(self):
+        return self.opportunity.id if self.opportunity else None
+
+    @property
+    def opportunity_name(self):
+        return self.opportunity.name if self.opportunity else None
+
+    @property
+    def converted_date(self):
+        return self.opportunity.created_date if self.opportunity else None
+
+    @property
+    def assigned_employee_name(self):
+        return self.assigned_employee.name if self.assigned_employee else None
 
 class Customer(Base):
     __tablename__ = "customers"
@@ -119,6 +143,42 @@ class Opportunity(Base):
     lead = relationship("Lead", back_populates="opportunity")
     customer = relationship("Customer")
     assigned_employee = relationship("Employee")
+
+    @property
+    def lead_name(self):
+        return self.lead.name if self.lead else None
+
+    @property
+    def lead_company(self):
+        return self.lead.company if self.lead else None
+
+    @property
+    def lead_contact_name(self):
+        return self.lead.contact_name if self.lead else None
+
+    @property
+    def lead_email(self):
+        return self.lead.email if self.lead else None
+
+    @property
+    def lead_phone(self):
+        return self.lead.phone if self.lead else None
+
+    @property
+    def lead_source(self):
+        return self.lead.lead_source if self.lead else None
+
+    @property
+    def lead_created_date(self):
+        return self.lead.created_date if self.lead else None
+
+    @property
+    def customer_name(self):
+        return self.customer.name if self.customer else None
+
+    @property
+    def assigned_employee_name(self):
+        return self.assigned_employee.name if self.assigned_employee else None
 
 class Contact(Base):
     __tablename__ = "contacts"

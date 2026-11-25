@@ -21,6 +21,8 @@ class DashboardSummary(BaseModel):
     completed_visits: int
 
     # CRM 360 spec alignment fields
+    pipeline_value: float = 0.0
+    opportunities_by_stage: Dict[str, int] = {}
     new_leads: int = 0
     contacted_leads: int = 0
     new_customers: int = 0
@@ -29,6 +31,7 @@ class DashboardSummary(BaseModel):
     active_visits: int = 0
     upcoming_meetings_list: List[Dict[str, Any]] = []
     recent_activities: List[Dict[str, Any]] = []
+    employee_location_status: List[Dict[str, Any]] = []
 
 class ChartDataPoint(BaseModel):
     label: str

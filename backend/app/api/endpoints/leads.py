@@ -7,9 +7,9 @@ from datetime import datetime, date
 
 from app.api import deps
 from app.core.scope import apply_scope, get_team_employee_ids
-from app.models.domain import Lead, Opportunity, Employee, AuditLog
+from app.models.domain import Lead, Opportunity, Employee, AuditLog, Customer
 from app.schemas.lead import (
-    LeadCreate, LeadUpdate, LeadResponse, LeadQualify, LeadDisqualify
+    LeadCreate, LeadUpdate, LeadResponse, LeadQualify, LeadDisqualify, LeadConvert
 )
 from app.schemas.audit import AuditLogResponse
 from app.core.audit import log_action
@@ -91,7 +91,7 @@ def get_leads(
     if status:
         query = query.filter(Lead.status == status)
         
-    return paginate_query(
+    res = paginate_query(
         query=query,
         model=Lead,
         skip=skip,
@@ -104,6 +104,11 @@ def get_leads(
         paginate=paginate,
         raw=raw,
     )
+    if isinstance(res, dict) and "items" in res:
+        res["items"] = [LeadResponse.model_validate(item) for item in res["items"]]
+    elif isinstance(res, list):
+        res = [LeadResponse.model_validate(item) for item in res]
+    return res
 
 @router.get("/{lead_id}", response_model=LeadResponse)
 def get_lead(
@@ -250,6 +255,113 @@ def qualify_lead(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Transaction failed during qualification: " + str(e))
+
+@router.post("/{lead_id}/convert", response_model=LeadResponse)
+def convert_lead(
+    *,
+    db: Session = Depends(deps.get_db),
+    lead_id: int,
+    convert_in: LeadConvert,
+    request: Request,
+    auth_info: dict = Depends(deps.PermissionChecker("Lead", "Create Opportunity")),
+):
+    lead = apply_scope(db.query(Lead).filter(Lead.id == lead_id), Lead, auth_info, db).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+        
+    if lead.status == "Disqualified":
+        raise HTTPException(status_code=400, detail="Cannot convert a disqualified lead.")
+
+    # Check for duplicate conversion
+    existing_opp = db.query(Opportunity).filter(Opportunity.lead_id == lead.id).first()
+    if existing_opp:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Lead has already been converted to Opportunity '{existing_opp.name}' (ID: {existing_opp.id})."
+        )
+
+    # Validate name
+    if not convert_in.name or not convert_in.name.strip():
+        raise HTTPException(status_code=400, detail="Opportunity name is required.")
+
+    # Validate close date if supplied
+    if convert_in.expected_close_date and convert_in.expected_close_date < date.today():
+        raise HTTPException(status_code=400, detail="Expected close date cannot be in the past.")
+
+    # Validate assigned employee scope if supplied
+    assigned_emp_id = convert_in.assigned_employee_id or lead.assigned_employee_id or auth_info["user"].id
+    if convert_in.assigned_employee_id:
+        target_emp = db.query(Employee).filter(Employee.id == convert_in.assigned_employee_id).first()
+        if not target_emp:
+            raise HTTPException(status_code=404, detail="Assigned employee not found")
+        scope = auth_info["scope"]
+        curr_user = auth_info["user"]
+        if scope == "Own" and target_emp.id != curr_user.id:
+            raise HTTPException(status_code=403, detail="Target employee is outside of authorized data scope.")
+        elif scope == "Team" and target_emp.id not in get_team_employee_ids(db, curr_user.id):
+            raise HTTPException(status_code=403, detail="Target employee is outside of authorized data scope.")
+        elif scope == "Company" and target_emp.company_id != curr_user.company_id:
+            raise HTTPException(status_code=403, detail="Target employee is outside of authorized data scope.")
+
+    # Validate customer if provided
+    if convert_in.customer_id:
+        cust = db.query(Customer).filter(Customer.id == convert_in.customer_id).first()
+        if not cust:
+            raise HTTPException(status_code=404, detail="Customer not found")
+
+    try:
+        old_status = lead.status
+        lead.status = "Qualified"
+
+        opp = Opportunity(
+            name=convert_in.name.strip(),
+            lead_id=lead.id,
+            customer_id=convert_in.customer_id,
+            expected_value=convert_in.expected_value or 0.0,
+            probability=convert_in.probability if convert_in.probability is not None else 10.0,
+            expected_close_date=convert_in.expected_close_date,
+            stage=convert_in.stage or "Opportunity",
+            description=convert_in.description or lead.requirement,
+            notes=convert_in.notes or lead.notes,
+            assigned_employee_id=assigned_emp_id,
+        )
+        db.add(opp)
+        db.flush()
+
+        log_action(
+            db,
+            auth_info["user"].id,
+            "Convert to Opportunity",
+            "Lead",
+            lead.id,
+            old_val={"status": old_status},
+            new_val={"status": "Qualified", "opportunity_id": opp.id, "opportunity_name": opp.name},
+            request=request
+        )
+        log_action(
+            db,
+            auth_info["user"].id,
+            "Create",
+            "Opportunity",
+            opp.id,
+            new_val={
+                "name": opp.name,
+                "lead_id": lead.id,
+                "stage": opp.stage,
+                "expected_value": opp.expected_value,
+                "assigned_employee_id": opp.assigned_employee_id
+            },
+            request=request
+        )
+        db.commit()
+        db.refresh(lead)
+        return lead
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Transaction failed during lead conversion: " + str(e))
 
 @router.post("/{lead_id}/disqualify", response_model=LeadResponse)
 def disqualify_lead(

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import LoginModal from '../components/LoginModal';
 import { 
@@ -15,21 +15,63 @@ import {
   Calendar, 
   PhoneCall, 
   Mail, 
-  Check 
+  Check,
+  AlertCircle,
+  LogOut,
+  LayoutDashboard
 } from 'lucide-react';
 
 export default function Landing() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('signin'); // 'signin' or 'getstarted'
   const [activeTab, setActiveTab] = useState('pipeline');
   const [isScrolled, setIsScrolled] = useState(false);
+  const [statusAlert, setStatusAlert] = useState('');
 
   const openAuthModal = (mode = 'signin') => {
     setModalMode(mode);
     setMobileMenuOpen(false);
     setIsLoginModalOpen(true);
+  };
+
+  const closeAuthModal = () => {
+    setIsLoginModalOpen(false);
+    if (searchParams.get('auth')) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('auth');
+      setSearchParams(newParams, { replace: true });
+    }
+  };
+
+  // Sync modal with URL search parameters (e.g. ?auth=signin, ?auth=register)
+  useEffect(() => {
+    const authAction = searchParams.get('auth');
+    if (authAction === 'signin' || authAction === 'login') {
+      openAuthModal('signin');
+    } else if (authAction === 'register' || authAction === 'getstarted') {
+      openAuthModal('getstarted');
+    }
+  }, [searchParams]);
+
+  // Unified "Go to Dashboard" handler per requirements
+  const handleGoToDashboard = (e) => {
+    if (e) e.preventDefault();
+    setMobileMenuOpen(false);
+    if (!user) {
+      openAuthModal('signin');
+      return;
+    }
+    if (user.status === 'Active') {
+      navigate('/dashboard');
+    } else if (user.status === 'Pending_Approval' || user.status === 'Pending') {
+      navigate('/pending-approval');
+    } else {
+      setStatusAlert('Your account is currently inactive. Please contact your system administrator.');
+    }
   };
 
   useEffect(() => {
@@ -116,13 +158,26 @@ export default function Landing() {
           {/* Right Action Buttons */}
           <div className="hidden md:flex items-center gap-3">
             {user ? (
-              <Link
-                to="/dashboard"
-                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm px-5 py-2.5 rounded-xl shadow-sm hover:shadow transition-all duration-200"
-              >
-                Go to Dashboard
-                <ArrowRight size={16} />
-              </Link>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleGoToDashboard}
+                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm px-5 py-2.5 rounded-xl shadow-sm hover:shadow transition-all duration-200 cursor-pointer"
+                >
+                  <LayoutDashboard size={16} />
+                  <span>Go to Dashboard</span>
+                  <ArrowRight size={15} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => logout()}
+                  className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                  title="Sign Out"
+                  aria-label="Sign Out"
+                >
+                  <LogOut size={18} />
+                </button>
+              </div>
             ) : (
               <>
                 <button
@@ -134,10 +189,10 @@ export default function Landing() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => openAuthModal('getstarted')}
+                  onClick={handleGoToDashboard}
                   className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm px-4.5 py-2.5 rounded-xl shadow-sm hover:shadow transition-all duration-200 cursor-pointer"
                 >
-                  <span>Get Started</span>
+                  <span>Go to Dashboard</span>
                   <ArrowRight size={15} />
                 </button>
               </>
@@ -184,38 +239,58 @@ export default function Landing() {
               About
             </button>
             <div className="pt-2 space-y-2">
+              <button
+                type="button"
+                onClick={handleGoToDashboard}
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl shadow-sm cursor-pointer"
+              >
+                <span>Go to Dashboard</span>
+                <ArrowRight size={16} />
+              </button>
               {user ? (
-                <Link
-                  to="/dashboard"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl shadow-sm"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    logout();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2.5 px-4 rounded-xl transition-colors cursor-pointer text-sm"
                 >
-                  Go to Dashboard
-                  <ArrowRight size={16} />
-                </Link>
+                  <LogOut size={16} />
+                  <span>Sign Out</span>
+                </button>
               ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => openAuthModal('getstarted')}
-                    className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl shadow-sm cursor-pointer"
-                  >
-                    <span>Get Started</span>
-                    <ArrowRight size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openAuthModal('signin')}
-                    className="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2.5 px-4 rounded-xl transition-colors cursor-pointer text-sm"
-                  >
-                    Sign In
-                  </button>
-                </>
+                <button
+                  type="button"
+                  onClick={() => openAuthModal('signin')}
+                  className="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2.5 px-4 rounded-xl transition-colors cursor-pointer text-sm"
+                >
+                  Sign In
+                </button>
               )}
             </div>
           </div>
         )}
       </header>
+
+      {/* Inactive Account Status Alert Banner */}
+      {statusAlert && (
+        <div className="fixed top-20 right-4 sm:right-8 z-50 max-w-md bg-amber-50 border border-amber-300 text-amber-900 p-4 rounded-2xl shadow-xl flex items-start gap-3 animate-fade-in">
+          <AlertCircle className="text-amber-600 flex-shrink-0 mt-0.5" size={20} />
+          <div className="flex-1 text-sm">
+            <p className="font-semibold text-amber-900">Account Access Notice</p>
+            <p className="text-xs text-amber-800 mt-1 leading-relaxed">{statusAlert}</p>
+          </div>
+          <button 
+            type="button"
+            onClick={() => setStatusAlert('')} 
+            className="text-amber-500 hover:text-amber-800 p-1 rounded-lg cursor-pointer transition-colors"
+            aria-label="Dismiss alert"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* 2. PREMIUM HERO SECTION                                  */}
@@ -259,22 +334,14 @@ export default function Landing() {
                   Explore Features
                   <ArrowRight size={18} />
                 </button>
-                {user ? (
-                  <Link
-                    to="/dashboard"
-                    className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 font-semibold text-base px-6 py-3.5 rounded-xl border border-slate-200 shadow-xs transition-all duration-200"
-                  >
-                    Go to Dashboard
-                  </Link>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => openAuthModal('signin')}
-                    className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 font-semibold text-base px-6 py-3.5 rounded-xl border border-slate-200 shadow-xs transition-all duration-200 cursor-pointer"
-                  >
-                    Sign In
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={handleGoToDashboard}
+                  className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 font-semibold text-base px-6 py-3.5 rounded-xl border border-slate-200 shadow-xs transition-all duration-200 cursor-pointer"
+                >
+                  <span>Go to Dashboard</span>
+                  <ArrowRight size={16} className="text-slate-400" />
+                </button>
               </div>
 
               {/* Trust & Capability Highlights */}
@@ -913,24 +980,14 @@ export default function Landing() {
                 Bring your customer relationships and business workflows together with CRM360.
               </p>
               <div className="pt-4">
-                {user ? (
-                  <Link
-                    to="/dashboard"
-                    className="inline-flex items-center gap-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-base px-8 py-4 rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all duration-200"
-                  >
-                    Go to Dashboard
-                    <ArrowRight size={18} />
-                  </Link>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => openAuthModal('signin')}
-                    className="inline-flex items-center gap-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-base px-8 py-4 rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all duration-200 cursor-pointer"
-                  >
-                    Sign In to CRM360
-                    <ArrowRight size={18} />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={handleGoToDashboard}
+                  className="inline-flex items-center gap-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-base px-8 py-4 rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all duration-200 cursor-pointer"
+                >
+                  <span>Go to Dashboard</span>
+                  <ArrowRight size={18} />
+                </button>
               </div>
             </div>
 
@@ -984,22 +1041,13 @@ export default function Landing() {
               >
                 About
               </button>
-              {user ? (
-                <Link 
-                  to="/dashboard" 
-                  className="hover:text-white transition-colors text-blue-400"
-                >
-                  Dashboard
-                </Link>
-              ) : (
-                <button 
-                  type="button"
-                  onClick={() => openAuthModal('signin')} 
-                  className="hover:text-white transition-colors text-blue-400 cursor-pointer"
-                >
-                  Sign In
-                </button>
-              )}
+              <button 
+                type="button"
+                onClick={handleGoToDashboard} 
+                className="hover:text-white transition-colors text-blue-400 cursor-pointer text-left"
+              >
+                Go to Dashboard
+              </button>
             </nav>
 
           </div>
@@ -1016,7 +1064,7 @@ export default function Landing() {
       {/* ======================================================== */}
       <LoginModal 
         isOpen={isLoginModalOpen} 
-        onClose={() => setIsLoginModalOpen(false)} 
+        onClose={closeAuthModal} 
         initialMode={modalMode}
       />
 

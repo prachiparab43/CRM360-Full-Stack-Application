@@ -77,3 +77,23 @@ app.dependency_overrides[get_db] = override_get_db
 def client():
     with TestClient(app) as c:
         yield c
+
+@pytest.fixture
+def admin_token(client):
+    res = client.post("/api/auth/login", data={"username": "admin@crm360.com", "password": "Admin123!"})
+    return res.json()["access_token"]
+
+@pytest.fixture
+def db_session():
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@pytest.fixture(autouse=True)
+def clear_rate_limits():
+    from app.core.security import reset_login_rate_limit
+    reset_login_rate_limit()
+    yield
+    reset_login_rate_limit()

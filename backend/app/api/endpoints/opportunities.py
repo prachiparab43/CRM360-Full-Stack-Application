@@ -68,7 +68,7 @@ def get_opportunities(
     if stage:
         query = query.filter(Opportunity.stage == stage)
         
-    return paginate_query(
+    res = paginate_query(
         query=query,
         model=Opportunity,
         skip=skip,
@@ -81,6 +81,11 @@ def get_opportunities(
         paginate=paginate,
         raw=raw,
     )
+    if isinstance(res, dict) and "items" in res:
+        res["items"] = [OpportunityResponse.model_validate(item) for item in res["items"]]
+    elif isinstance(res, list):
+        res = [OpportunityResponse.model_validate(item) for item in res]
+    return res
 
 @router.get("/{opp_id}", response_model=OpportunityResponse)
 def get_opportunity(

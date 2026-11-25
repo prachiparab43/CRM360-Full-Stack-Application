@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from app.api import deps
 from app.models.domain import Employee, Company, Role, RolePermission
-from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeResponse
+from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeResponse, PasswordResetRequest
 from app.core.audit import log_action
 from app.core.security import get_password_hash, validate_password_policy
 from app.core.scope import apply_scope
@@ -79,6 +79,7 @@ def create_employee(
         raise HTTPException(status_code=403, detail="Own scope cannot create other employees.")
 
     # Role assignment anti-escalation & permission check
+    target_role = None
     if employee_in.role_id:
         has_assign = db.query(RolePermission).filter(
             RolePermission.role_id == caller.role_id,
@@ -100,6 +101,10 @@ def create_employee(
 
     emp_data = employee_in.model_dump()
     password = emp_data.pop("password")
+    confirm_password = emp_data.pop("confirm_password", None)
+    if confirm_password and password != confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match.")
+        
     validate_password_policy(password)
     
     # Default company_id if not provided
@@ -108,10 +113,22 @@ def create_employee(
 
     db_employee = Employee(**emp_data, password_hash=get_password_hash(password))
     db.add(db_employee)
+    db.flush()
+    
+    action_type = "Create"
+    if target_role and (getattr(target_role, "is_system", False) or target_role.name == "System Administrator"):
+        action_type = "Create Administrator"
+        
+    log_action(
+        db,
+        caller.id,
+        action_type,
+        "Employee",
+        db_employee.id,
+        new_val={"name": db_employee.name, "email": db_employee.email, "role": target_role.name if target_role else None, "status": db_employee.status}
+    )
     db.commit()
     db.refresh(db_employee)
-    
-    log_action(db, caller.id, "Create", "Employee", db_employee.id, new_val=db_employee.email)
     return db_employee
 
 @router.get("/")
@@ -122,6 +139,7 @@ def get_employees(
     search: Optional[str] = None,
     status: Optional[str] = None,
     department: Optional[str] = None,
+    role_id: Optional[int] = None,
     sort_by: Optional[str] = "name",
     sort_dir: Optional[str] = "asc",
     paginate: bool = True,
@@ -136,8 +154,10 @@ def get_employees(
         query = query.filter(Employee.status == status)
     if department:
         query = query.filter(Employee.department == department)
+    if role_id is not None:
+        query = query.filter(Employee.role_id == role_id)
         
-    return paginate_query(
+    res = paginate_query(
         query=query,
         model=Employee,
         skip=skip,
@@ -150,6 +170,11 @@ def get_employees(
         paginate=paginate,
         raw=raw,
     )
+    if isinstance(res, dict) and "items" in res:
+        res["items"] = [EmployeeResponse.model_validate(item) for item in res["items"]]
+    elif isinstance(res, list):
+        res = [EmployeeResponse.model_validate(item) for item in res]
+    return res
 
 @router.get("/{employee_id}", response_model=EmployeeResponse)
 def get_employee(
@@ -225,12 +250,30 @@ def update_employee(
                     detail="Cannot change role of the last active employee holding Role management permissions."
                 )
 
+    old_vals = {}
+    new_vals = {}
+    old_status = employee.status
+    old_role_id = employee.role_id
+
     for field, value in update_data.items():
-        setattr(employee, field, value)
+        curr_val = getattr(employee, field)
+        if curr_val != value:
+            old_vals[field] = curr_val
+            new_vals[field] = value
+            setattr(employee, field, value)
         
+    action_name = "Edit"
+    if "status" in update_data and old_status != update_data["status"]:
+        if old_status in ["Pending_Approval", "Pending"] and update_data["status"] == "Active":
+            action_name = "Account Approval"
+        elif update_data["status"] != "Active":
+            action_name = "Account Deactivation"
+    elif "role_id" in update_data and old_role_id != update_data["role_id"]:
+        action_name = "Role Assigned"
+
+    log_action(db, caller.id, action_name, "Employee", employee.id, old_val=old_vals, new_val=new_vals)
     db.commit()
     db.refresh(employee)
-    log_action(db, caller.id, "Edit", "Employee", employee.id)
     return employee
 
 @router.delete("/{employee_id}", response_model=dict)
@@ -253,3 +296,96 @@ def delete_employee(
     db.commit()
     log_action(db, auth_info["user"].id, "Delete", "Employee", employee_id)
     return {"message": "Employee deleted successfully"}
+
+@router.post("/{employee_id}/reset-password", response_model=dict)
+def reset_employee_password(
+    *,
+    db: Session = Depends(deps.get_db),
+    employee_id: int,
+    reset_in: PasswordResetRequest,
+    auth_info: dict = Depends(deps.PermissionChecker("Employee", "Edit")),
+):
+    employee = apply_scope(db.query(Employee).filter(Employee.id == employee_id), Employee, auth_info, db).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found or outside authorized scope")
+
+    caller = auth_info["user"]
+    if employee.role and not caller_can_assign_role(caller, employee.role):
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot reset password for a user possessing permissions or scopes you do not possess."
+        )
+
+    if reset_in.confirm_password and reset_in.password != reset_in.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match.")
+
+    validate_password_policy(reset_in.password)
+    employee.password_hash = get_password_hash(reset_in.password)
+
+    log_action(
+        db,
+        caller.id,
+        "Password Reset",
+        "Employee",
+        employee.id,
+        new_val={"target_email": employee.email, "reset_by": caller.email}
+    )
+    db.commit()
+    return {"message": f"Password for {employee.email} has been reset successfully."}
+
+@router.post("/{employee_id}/activate", response_model=EmployeeResponse)
+def activate_employee(
+    employee_id: int,
+    db: Session = Depends(deps.get_db),
+    auth_info: dict = Depends(deps.PermissionChecker("Employee", "Edit")),
+):
+    employee = apply_scope(db.query(Employee).filter(Employee.id == employee_id), Employee, auth_info, db).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found or outside authorized scope")
+        
+    old_status = employee.status
+    employee.status = "Active"
+    log_action(
+        db,
+        auth_info["user"].id,
+        "Account Activation",
+        "Employee",
+        employee.id,
+        old_val={"status": old_status},
+        new_val={"status": "Active"}
+    )
+    db.commit()
+    db.refresh(employee)
+    return EmployeeResponse.model_validate(employee)
+
+@router.post("/{employee_id}/deactivate", response_model=EmployeeResponse)
+def deactivate_employee(
+    employee_id: int,
+    db: Session = Depends(deps.get_db),
+    auth_info: dict = Depends(deps.PermissionChecker("Employee", "Edit")),
+):
+    employee = apply_scope(db.query(Employee).filter(Employee.id == employee_id), Employee, auth_info, db).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found or outside authorized scope")
+
+    if is_last_active_role_admin(db, employee.id):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot deactivate the last active employee holding Role management permissions."
+        )
+
+    old_status = employee.status
+    employee.status = "Inactive"
+    log_action(
+        db,
+        auth_info["user"].id,
+        "Account Deactivation",
+        "Employee",
+        employee.id,
+        old_val={"status": old_status},
+        new_val={"status": "Inactive"}
+    )
+    db.commit()
+    db.refresh(employee)
+    return EmployeeResponse.model_validate(employee)
+

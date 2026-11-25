@@ -41,6 +41,15 @@ class OpportunityResponse(OpportunityBase):
     stage: str
     lost_reason: Optional[str] = None
     created_date: Optional[datetime] = None
+    lead_name: Optional[str] = None
+    lead_company: Optional[str] = None
+    lead_contact_name: Optional[str] = None
+    lead_email: Optional[str] = None
+    lead_phone: Optional[str] = None
+    lead_source: Optional[str] = None
+    lead_created_date: Optional[datetime] = None
+    customer_name: Optional[str] = None
+    assigned_employee_name: Optional[str] = None
 
     class Config:
         from_attributes = True
